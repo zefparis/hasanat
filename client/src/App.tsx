@@ -3,6 +3,7 @@ import { ThemeProvider } from './lib/theme'
 import { AuthProvider, useAuth } from './lib/auth'
 import { WalletProvider } from './lib/wallet'
 import { ToastProvider } from './lib/toast'
+import { I18nProvider, useI18n } from './lib/i18n'
 import Nav from './components/Nav'
 import SignIn from './screens/SignIn'
 import Home from './screens/Home'
@@ -21,6 +22,7 @@ const tabRoutes = ['/', '/wallet', '/pay', '/give', '/chats']
 function Shell() {
   const { pathname } = useLocation()
   const { sid, loading } = useAuth()
+  const { dir } = useI18n()
   const showNav = tabRoutes.includes(pathname)
 
   // Sign-in is the only public route. Everything else requires an HCS-U7 session.
@@ -33,7 +35,7 @@ function Shell() {
   }
 
   return (
-    <div className="app">
+    <div className="app" dir={dir}>
       <Routes>
         <Route path="/signin" element={<SignIn />} />
         <Route path="/" element={<Home />} />
@@ -54,16 +56,18 @@ function Shell() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <WalletProvider>
-          <ToastProvider>
-            <BrowserRouter>
-              <Shell />
-            </BrowserRouter>
-          </ToastProvider>
-        </WalletProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <I18nProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <WalletProvider>
+            <ToastProvider>
+              <BrowserRouter>
+                <Shell />
+              </BrowserRouter>
+            </ToastProvider>
+          </WalletProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </I18nProvider>
   )
 }

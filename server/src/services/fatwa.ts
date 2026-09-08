@@ -34,6 +34,14 @@ const HALAL_HARAM_PATTERNS: RegExp[] = [
   /\bforbidden\b/i,
   /\bnot\s+allowed\b/i,
   /\b(is|are)\s+.{0,30}\s+(allowed|permitted)\s+(in\s+islam|for\s+muslims?)\b/i,
+  // Arabic patterns — \b doesn't work with Arabic script, use direct matching
+  /حلال/i,
+  /حرام/i,
+  /مباح/i,
+  /ممنوع/i,
+  /غير\s*جائز/i,
+  /هل\s+يجوز/i,
+  /هل\s+هذا\s+(حلال|حرام)/i,
 ]
 
 // Validity of an act — asking if a specific action is valid/accepted.
@@ -42,6 +50,14 @@ const VALIDITY_PATTERNS: RegExp[] = [
   /\bdoes\s+my\s+.{0,30}\s+(count|count as|qualify)\b/i,
   /\b(is|are)\s+.{0,30}\s+(valid|invalid|accepted|rejected)\s+(in\s+islam|for\s+muslims?)\b/i,
   /\bnullify|invalidate|break\s+(my|the)\s+(fast|wudu|prayer|salah|salat)\b/i,
+  // Arabic patterns
+  /هل\s+(صلاتي|وضوئي|صيامي|صلاتي)\s+(صحيحة?|مقبولة?|صحيح)/i,
+  /هل\s+يصح/i,
+  /هل\s+يقبل/i,
+  /أ?بطل/i,
+  /يبطل/i,
+  /يفسد/i,
+  /هل\s+.{0,20}\s+(صحيح|باطل|مقبول|مرفوض)/i,
 ]
 
 // Personal status — marriage, divorce, inheritance, custody.
@@ -49,6 +65,16 @@ const PERSONAL_STATUS_PATTERNS: RegExp[] = [
   /\b(nikah|marriage|divorce|talaq|khula|custody|inheritance|wali|mahr|dowry)\b/i,
   /\bcan\s+i\s+(marry|divorce|remarry)\b/i,
   /\b(is|are)\s+.{0,30}\s+(marriage|divorce)\s+(valid|recognized|allowed)\b/i,
+  // Arabic patterns
+  /زواج/i,
+  /طلاق/i,
+  /خلع/i,
+  /حضانة/i,
+  /ميراث/i,
+  /ولي\s+الأمر/i,
+  /مهر/i,
+  /هل\s+يجوز\s+أن\s+أتزوج/i,
+  /هل\s+يجوز\s+الطلاق/i,
 ]
 
 // Direct request for a ruling / fatwa / opinion.
@@ -60,6 +86,14 @@ const RELIGIOUS_RULING_PATTERNS: RegExp[] = [
   /\bwhat\s+(should|must)\s+i\s+do\s+(about|regarding)\b/i,
   /\bis\s+it\s+(a\s+sin|sinful)\b/i,
   /\b(is|are)\s+.{0,30}\s+a\s+sin\b/i,
+  // Arabic patterns
+  /فتوى/i,
+  /حكم\s+(شرعي|ديني)/i,
+  /رأي\s+(ديني|شرعي)/i,
+  /ماذا\s+يجب\s+أن\s+أفعل/i,
+  /هل\s+هذا\s+إثم/i,
+  /هل\s+هو\s+إثم/i,
+  /إثم/i,
 ]
 
 // Ritual validity — specific worship act correctness.
@@ -69,6 +103,13 @@ const RITUAL_VALIDITY_PATTERNS: RegExp[] = [
   /\bmissed\s+(a|my)\s+(prayer|salah|salat|fast|ramadan)\b/i,
   /\bmake\s?up\s+(for|a)\s+(missed|prayer|fast)\b/i,
   /\bqada\b/i,
+  // Arabic patterns
+  /كيف\s+أصلي/i,
+  /كيف\s+أتوضأ/i,
+  /كيف\s+أغتسل/i,
+  /كم\s+ركعة/i,
+  /فاتتني\s+(صلاة|فريضة)/i,
+  /قضاء/i,
 ]
 
 const ALL_CATEGORIES: { category: FatwaVerdict['category']; patterns: RegExp[] }[] = [
@@ -107,6 +148,10 @@ export const FATWA_REFUSAL_RESPONSE =
   "I can't issue a religious ruling or give an opinion on this — that's a matter for qualified scholars, not an AI assistant. " +
   "I'm routing your question privately to the Scholar panel. A scholar will respond in this chat shortly, in sha' Allah."
 
+export const FATWA_REFUSAL_RESPONSE_AR =
+  "لا يمكنني إصدار فتوى أو إبداء رأي ديني — هذا من اختصاص العلماء المؤهلين، وليس مساعد ذكاء اصطناعي. " +
+  "أحوّل سؤالك سرًا إلى لجنة العلماء. سيرد عالم في هذه المحادثة قريبًا، إن شاء الله."
+
 /**
  * The Scholar panel's follow-up message. Also STATIC — never AI-generated.
  * The Scholar panel is human (or human-simulated for the pilot), never the
@@ -116,3 +161,18 @@ export const SCHOLAR_ACK_RESPONSE =
   "Assalamu alaikum. The Scholar panel has received your question. " +
   "A qualified scholar will review it and respond here. This may take a few hours during the pilot. " +
   "Your question is private and shared only with the panel. Jazak Allah khairan for your patience."
+
+export const SCHOLAR_ACK_RESPONSE_AR =
+  "السلام عليكم. تلقّت لجنة العلماء سؤالك. " +
+  "سيراجعه عالم مؤهل ويرد هنا. قد يستغرق ذلك بضع ساعات في النسخة التجريبية. " +
+  "سؤالك خاص ويُشارك فقط مع اللجنة. جزاك الله خيرًا على صبرك."
+
+/**
+ * Detect whether a message is written in Arabic script.
+ * Used to select the appropriate refusal / scholar ack language.
+ */
+export function isArabicText(text: string): boolean {
+  // Count Arabic script characters (basic range + supplemental)
+  const arabicChars = text.match(/[\u0600-\u06FF\u0750-\u077F]/g)
+  return !!arabicChars && arabicChars.length >= 3
+}

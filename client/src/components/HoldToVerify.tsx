@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { hcsApi, ApiError, type HcsVerifyRes } from '../lib/api'
+import { useI18n } from '../lib/i18n'
 
 type HoldState = 'idle' | 'holding' | 'verifying' | 'success' | 'failed'
 
-const CHECKS = [
-  'Device bound to account',
-  'Liveness confirmed',
-  'Cognitive signature matched',
-  'Session secured',
+const CHECK_KEYS = [
+  'holdToVerify.check1',
+  'holdToVerify.check2',
+  'holdToVerify.check3',
+  'holdToVerify.check4',
 ] as const
 
 interface Props {
@@ -32,10 +33,14 @@ interface Props {
 export default function HoldToVerify({
   onSuccess,
   onCancel,
-  title = 'HCS-U7 verification',
-  subtitle = 'Press and hold the star. Your cognitive signature is captured on this device and compared to your enrolled profile.',
-  cancelLabel = 'Cancel',
+  title,
+  subtitle,
+  cancelLabel,
 }: Props) {
+  const { t } = useI18n()
+  const _title = title ?? t('holdToVerify.defaultTitle')
+  const _subtitle = subtitle ?? t('holdToVerify.defaultSubtitle')
+  const _cancelLabel = cancelLabel ?? t('holdToVerify.defaultCancel')
   const [hold, setHold] = useState<HoldState>('idle')
   const [progress, setProgress] = useState(0)
   const [checks, setChecks] = useState<boolean[]>([false, false, false, false])
@@ -56,13 +61,13 @@ export default function HoldToVerify({
       .then((s) => { if (!cancelled) { sessionPublicIdRef.current = s.sessionPublicId; setCreating(false) } })
       .catch((e) => {
         if (!cancelled) {
-          setError(e instanceof ApiError ? e.message : 'Could not start HCS-U7 session.')
+          setError(e instanceof ApiError ? e.message : t('holdToVerify.errorNoSession'))
           setHold('failed')
           setCreating(false)
         }
       })
     return () => { cancelled = true }
-  }, [])
+  }, [t])
 
   function retry() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -74,7 +79,7 @@ export default function HoldToVerify({
     hcsApi.createSession()
       .then((s) => { sessionPublicIdRef.current = s.sessionPublicId; setCreating(false) })
       .catch((e) => {
-        setError(e instanceof ApiError ? e.message : 'Could not start HCS-U7 session.')
+        setError(e instanceof ApiError ? e.message : t('holdToVerify.errorNoSession'))
         setHold('failed')
         setCreating(false)
       })
@@ -104,7 +109,7 @@ export default function HoldToVerify({
   async function startVerify() {
     const sessionPublicId = sessionPublicIdRef.current
     if (!sessionPublicId) {
-      setError('No HCS-U7 session. Retry.')
+      setError(t('holdToVerify.errorNoSessionRetry'))
       setHold('failed')
       return
     }
@@ -115,7 +120,7 @@ export default function HoldToVerify({
       verifyInFlightRef.current = false
       if (releasedEarlyRef.current) {
         setHold('failed')
-        setError('Released before confirmation. Press and hold again.')
+        setError(t('holdToVerify.errorReleased'))
         return
       }
       const c = res.result.checks
@@ -128,11 +133,11 @@ export default function HoldToVerify({
       verifyInFlightRef.current = false
       if (releasedEarlyRef.current) {
         setHold('failed')
-        setError('Released before confirmation. Press and hold again.')
+        setError(t('holdToVerify.errorReleased'))
         return
       }
       setHold('failed')
-      setError(e instanceof ApiError ? e.message : 'HCS-U7 verification failed. Retry.')
+      setError(e instanceof ApiError ? e.message : t('holdToVerify.errorFailed'))
     }
   }
 
@@ -142,7 +147,7 @@ export default function HoldToVerify({
       releasedEarlyRef.current = true
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       setHold('failed')
-      setError('Released before confirmation. Press and hold again.')
+      setError(t('holdToVerify.errorReleased'))
       return
     }
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -154,8 +159,8 @@ export default function HoldToVerify({
 
   return (
     <>
-      <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>{title}</h2>
-      <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 6, lineHeight: 1.5 }}>{subtitle}</p>
+      <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>{_title}</h2>
+      <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 6, lineHeight: 1.5 }}>{_subtitle}</p>
 
       <div
         className={`hold ${hold === 'holding' ? 'on' : ''}`}
@@ -177,26 +182,25 @@ export default function HoldToVerify({
       </div>
 
       <div className="checks" style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {CHECKS.map((label, i) => (
-          <div key={label} className={checks[i] ? 'ok' : ''} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: checks[i] ? 'var(--ink)' : 'var(--muted)', opacity: checks[i] ? 1 : 0.5, transition: '.3s' }}>
+        {CHECK_KEYS.map((key, i) => (
+          <div key={key} className={checks[i] ? 'ok' : ''} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: checks[i] ? 'var(--ink)' : 'var(--muted)', opacity: checks[i] ? 1 : 0.5, transition: '.3s' }}>
             <i style={{ width: 22, height: 22, borderRadius: '50%', border: '1.5px solid', borderColor: checks[i] ? 'var(--ok)' : 'var(--line)', background: checks[i] ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               {checks[i] && <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" style={{ width: 12, height: 12 }}><path d="M5 12l4 4L19 7" /></svg>}
             </i>
-            {label}
+            {t(key)}
           </div>
         ))}
       </div>
 
       {error && <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 14, lineHeight: 1.5 }}>{error}</p>}
-      {hold === 'failed' && <button className="btn ghost" style={{ marginTop: 14 }} onClick={retry}>Retry verification</button>}
+      {hold === 'failed' && <button className="btn ghost" style={{ marginTop: 14 }} onClick={retry}>{t('holdToVerify.retryButton')}</button>}
 
       <p className="disc">
-        HCS-U7 authenticates an identity, never a devotional act. This confirms you are the verified human
-        behind the session — nothing more. Releasing before confirmation fails the check.
+        {t('holdToVerify.disc')}
       </p>
 
       {onCancel && hold !== 'success' && (
-        <button className="btn ghost" style={{ marginTop: 10, width: '100%' }} onClick={onCancel}>{cancelLabel}</button>
+        <button className="btn ghost" style={{ marginTop: 10, width: '100%' }} onClick={onCancel}>{_cancelLabel}</button>
       )}
     </>
   )

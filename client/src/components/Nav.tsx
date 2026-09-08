@@ -1,37 +1,39 @@
 import type { ComponentType, SVGProps } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Home, Wallet, Give, Chat } from './icons'
+import { useI18n } from '../lib/i18n'
 
 type IconCmp = ComponentType<SVGProps<SVGSVGElement>>
-interface Tab { to: string; label: string; Icon?: IconCmp; end?: boolean; pay?: boolean }
+interface Tab { to: string; labelKey: string; Icon?: IconCmp; end?: boolean; pay?: boolean }
 
 const tabs: Tab[] = [
-  { to: '/', label: 'Home', Icon: Home, end: true },
-  { to: '/wallet', label: 'Wallet', Icon: Wallet },
-  { to: '/pay', label: 'Pay', pay: true },
-  { to: '/give', label: 'Give', Icon: Give },
-  { to: '/chats', label: 'Chats', Icon: Chat },
+  { to: '/', labelKey: 'nav.home', Icon: Home, end: true },
+  { to: '/wallet', labelKey: 'nav.wallet', Icon: Wallet },
+  { to: '/pay', labelKey: 'nav.pay', pay: true },
+  { to: '/give', labelKey: 'nav.give', Icon: Give },
+  { to: '/chats', labelKey: 'nav.chats', Icon: Chat },
 ]
 
 export default function Nav() {
+  const { t } = useI18n()
   return (
-    <nav className="nav" aria-label="Primary">
-      {tabs.map((t) => (
+    <nav className="nav" aria-label={t('nav.home')}>
+      {tabs.map((tab) => (
         <NavLink
-          key={t.to}
-          to={t.to}
-          end={t.end}
-          className={({ isActive }) => `${t.pay ? 'pay' : ''} ${isActive ? 'active' : ''}`}
+          key={tab.to}
+          to={tab.to}
+          end={tab.end}
+          className={({ isActive }) => `${tab.pay ? 'pay' : ''} ${isActive ? 'active' : ''}`}
         >
-          {t.pay ? (
+          {tab.pay ? (
             <>
               <span className="pay-star"><i className="star" /></span>
-              <span>{t.label}</span>
+              <span>{t(tab.labelKey)}</span>
             </>
           ) : (
             <>
-              {t.Icon && <t.Icon />}
-              <span>{t.label}</span>
+              {tab.Icon && <tab.Icon />}
+              <span>{t(tab.labelKey)}</span>
             </>
           )}
         </NavLink>

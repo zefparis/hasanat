@@ -11,7 +11,7 @@
  * the refusal must still be enforced by this layer, not the prompt.
  */
 
-import { classifyMessage, FATWA_REFUSAL_RESPONSE, SCHOLAR_ACK_RESPONSE } from './fatwa'
+import { classifyMessage, isArabicText, FATWA_REFUSAL_RESPONSE, FATWA_REFUSAL_RESPONSE_AR, SCHOLAR_ACK_RESPONSE, SCHOLAR_ACK_RESPONSE_AR } from './fatwa'
 import { getSchedule } from './prayer'
 
 export interface ChatAction {
@@ -169,7 +169,7 @@ export function generateReply(message: string, ctx: { balance: number; points: n
   const verdict = classifyMessage(message)
   if (verdict.isFatwa) {
     return {
-      text: FATWA_REFUSAL_RESPONSE,
+      text: isArabicText(message) ? FATWA_REFUSAL_RESPONSE_AR : FATWA_REFUSAL_RESPONSE,
       escalateToScholar: true,
     }
   }
@@ -186,8 +186,12 @@ export function generateReply(message: string, ctx: { balance: number; points: n
 /**
  * Scholar panel ack — STATIC, never AI-generated.
  * The Scholar panel is human (or human-simulated for the pilot).
+ * Returns Arabic or English based on the original message language.
  */
-export function scholarAck(): string {
+export function scholarAck(originalMessage?: string): string {
+  if (originalMessage && isArabicText(originalMessage)) {
+    return SCHOLAR_ACK_RESPONSE_AR
+  }
   return SCHOLAR_ACK_RESPONSE
 }
 

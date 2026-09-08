@@ -166,3 +166,48 @@
 
 /* overlay (Profile, etc.) */
 .overlay-screen{position:fixed;inset:0;z-index:80;background:var(--bg);overflow-y:auto;animation:in .22s ease}
+
+/* ─── RTL support (Arabic) ─────────────────────────────────────────────── */
+[dir='rtl']{font-family:var(--ar),'Amiri',serif}
+[dir='rtl'] .hdr{flex-direction:row-reverse}
+[dir='rtl'] .hdr-r{flex-direction:row-reverse}
+[dir='rtl'] .nav{flex-direction:row-reverse}
+[dir='rtl'] .back svg{transform:scaleX(-1)}
+[dir='rtl'] .qa{direction:rtl}
+[dir='rtl'] .explore{direction:rtl}
+[dir='rtl'] .wacts{direction:rtl}
+[dir='rtl'] .contacts{direction:rtl}
+[dir='rtl'] .balance .bgstar{right:auto;left:-30px}
+[dir='rtl'] .pchip{direction:rtl}
+[dir='rtl'] .greet{text-align:right}
+[dir='rtl'] .act{flex-direction:row-reverse}
+[dir='rtl'] .act .tx{text-align:right}
+[dir='rtl'] .pcard{flex-direction:row-reverse}
+[dir='rtl'] .scan .frame i{transform:scaleX(-1)}
+[dir='rtl'] .times .t{direction:rtl}
+[dir='rtl'] .qibla{flex-direction:row-reverse}
+[dir='rtl'] .dn{direction:rtl}
+[dir='rtl'] .tog::after{left:auto;right:3px}
+[dir='rtl'] .tog.on::after{right:25px;left:auto}
+[dir='rtl'] .chats .item{direction:rtl}
+[dir='rtl'] .chats .tx b small{direction:rtl}
+[dir='rtl'] .chat-hdr{flex-direction:row-reverse}
+[dir='rtl'] .wall{direction:rtl}
+[dir='rtl'] .b.me{align-self:flex-start;border-top-right-radius:12px;border-top-left-radius:3px}
+[dir='rtl'] .b.them{align-self:flex-end;border-top-left-radius:12px;border-top-right-radius:3px}
+[dir='rtl'] .cbar{flex-direction:row-reverse}
+[dir='rtl'] .toast{direction:rtl}
+[dir='rtl'] .kv{direction:rtl}
+[dir='rtl'] .item{direction:rtl}
+[dir='rtl'] .card{text-align:right}
+[dir='rtl'] .sec h3{text-align:right}
+[dir='rtl'] .amts{direction:rtl}
+[dir='rtl'] .badges{direction:rtl}
+[dir='rtl'] .ring{flex-direction:row-reverse}
+[dir='rtl'] .course{direction:rtl}
+[dir='rtl'] .camp{direction:rtl}
+[dir='rtl'] .zk{direction:rtl}
+[dir='rtl'] .hold{direction:rtl}
+[dir='rtl'] .checks div{direction:rtl}
+[dir='rtl'] .srch{direction:rtl}
+[dir='rtl'] .qr-replies{direction:rtl}

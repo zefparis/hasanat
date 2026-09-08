@@ -3,12 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Shield from '../components/Shield'
 import { exploreApi, type Business } from '../lib/api'
+import { useI18n } from '../lib/i18n'
 
 type Category = 'All' | 'Food' | 'Retail' | 'Travel' | 'Services'
 const CATEGORIES: Category[] = ['All', 'Food', 'Retail', 'Travel', 'Services']
+const CATEGORY_KEYS: Record<Category, string> = {
+  All: 'businesses.all',
+  Food: 'businesses.food',
+  Retail: 'businesses.retail',
+  Travel: 'businesses.travel',
+  Services: 'businesses.services',
+}
 
 export default function Businesses() {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [filter, setFilter] = useState<Category>('All')
   const [selected, setSelected] = useState<Business | null>(null)
@@ -24,29 +33,29 @@ export default function Businesses() {
       <div className="screen">
         <Header title={selected.name} left={<button className="ibtn" onClick={() => setSelected(null)}>‹</button>} right={<Shield />} />
         <div className="pad sec">
-          <h3>Merchant POS</h3>
+          <h3>{t('businesses.merchantPos')}</h3>
           <div className="card">
-            <div className="kv"><span>Category</span><b>{selected.category}</b></div>
-            <div className="kv"><span>Area</span><b>{selected.area}</b></div>
-            <div className="kv"><span>Accepts HAS</span><b style={{ color: selected.acceptsHAS ? 'var(--ok)' : 'var(--muted)' }}>{selected.acceptsHAS ? 'Yes' : 'Not yet'}</b></div>
-            <div className="kv"><span>KYB status</span><b style={{ color: selected.pos.kybStatus === 'verified' ? 'var(--ok)' : selected.pos.kybStatus === 'pending' ? 'var(--warn)' : 'var(--muted)' }}>{selected.pos.kybStatus}</b></div>
+            <div className="kv"><span>{t('businesses.category')}</span><b>{selected.category}</b></div>
+            <div className="kv"><span>{t('businesses.area')}</span><b>{selected.area}</b></div>
+            <div className="kv"><span>{t('businesses.acceptsHas')}</span><b style={{ color: selected.acceptsHAS ? 'var(--ok)' : 'var(--muted)' }}>{selected.acceptsHAS ? t('common.yes') : t('businesses.doesNotAccept')}</b></div>
+            <div className="kv"><span>{t('businesses.kybStatus')}</span><b style={{ color: selected.pos.kybStatus === 'verified' ? 'var(--ok)' : selected.pos.kybStatus === 'pending' ? 'var(--warn)' : 'var(--muted)' }}>{selected.pos.kybStatus}</b></div>
           </div>
         </div>
         {selected.acceptsHAS && (
           <div className="pad sec">
-            <h3>Today's sales</h3>
+            <h3>{t('businesses.todaysSales')}</h3>
             <div className="card">
-              <div className="kv"><span>Sales today</span><b>{selected.pos.salesToday} HAS</b></div>
-              <div className="kv"><span>Transactions</span><b>{selected.pos.transactionsToday}</b></div>
-              <div className="kv"><span>Settlement preference</span><b>{selected.pos.settlementPreference}</b></div>
-              <div className="kv"><span>Next SAR settlement</span><b>{selected.pos.nextSettlementSAR} SAR</b></div>
+              <div className="kv"><span>{t('businesses.salesToday')}</span><b>{selected.pos.salesToday} HAS</b></div>
+              <div className="kv"><span>{t('businesses.transactions')}</span><b>{selected.pos.transactionsToday}</b></div>
+              <div className="kv"><span>{t('businesses.settlementPref')}</span><b>{selected.pos.settlementPreference}</b></div>
+              <div className="kv"><span>{t('businesses.nextSarSettlement')}</span><b>{selected.pos.nextSettlementSAR} SAR</b></div>
             </div>
-            <p className="disc">Pilot mock POS data — no real merchant processing behind this view.</p>
+            <p className="disc">{t('businesses.posDisc')}</p>
           </div>
         )}
         <div className="pad sec">
           <button className="btn gold" disabled={!selected.acceptsHAS} onClick={() => navigate('/pay')}>
-            {selected.acceptsHAS ? 'Pay with HAS' : 'Does not accept HAS yet'}
+            {selected.acceptsHAS ? t('businesses.payWithHas') : t('businesses.doesNotAccept')}
           </button>
         </div>
       </div>
@@ -55,7 +64,7 @@ export default function Businesses() {
 
   return (
     <div className="screen">
-      <Header title="Businesses" right={<Shield />} />
+      <Header title={t('businesses.title')} right={<Shield />} />
       <div className="pad sec">
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto' }}>
@@ -69,12 +78,12 @@ export default function Businesses() {
                 background: filter === c ? 'var(--primary)' : 'var(--surface)', color: filter === c ? '#fff' : 'var(--ink)',
                 fontWeight: 500, cursor: 'pointer',
               }}
-            >{c}</button>
+            >{t(CATEGORY_KEYS[c])}</button>
           ))}
         </div>
 
         {filtered.length === 0 ? (
-          <div className="card"><p className="muted">No businesses in this category.</p></div>
+          <div className="card"><p className="muted">{t('businesses.noBusinesses')}</p></div>
         ) : (
           filtered.map((b) => (
             <div className="card" key={b.id} style={{ marginTop: 8, cursor: 'pointer' }} onClick={() => setSelected(b)}>
@@ -85,9 +94,9 @@ export default function Businesses() {
                   <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{b.category} · {b.area}</span>
                 </div>
                 {b.acceptsHAS ? (
-                  <span style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 600 }}>HAS ✓</span>
+                  <span style={{ fontSize: 11, color: 'var(--ok)', fontWeight: 600 }}>{t('businesses.hasYes')}</span>
                 ) : (
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>No HAS</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('businesses.noHas')}</span>
                 )}
               </div>
             </div>

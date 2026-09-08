@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import { useI18n } from '../lib/i18n'
 import HoldToVerify from '../components/HoldToVerify'
 
 type Step = 1 | 2 | 3
@@ -8,6 +9,7 @@ type Step = 1 | 2 | 3
 export default function SignIn() {
   const navigate = useNavigate()
   const { signIn } = useAuth()
+  const { t } = useI18n()
   const [step, setStep] = useState<Step>(1)
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
@@ -48,30 +50,30 @@ export default function SignIn() {
         <div style={{ fontFamily: 'var(--ar)', fontSize: 44, lineHeight: 1, marginBottom: 6 }}>حسنات</div>
         <div style={{ fontFamily: 'var(--serif)', fontSize: 34, fontWeight: 500 }}>Hasanat</div>
         <p style={{ opacity: 0.75, fontSize: 13.5, marginTop: 8, lineHeight: 1.5, maxWidth: 280 }}>
-          Presence, wallet, and giving — secured by HCS-U7 cognitive identity.
+          {t('signin.subtitle')}
         </p>
       </div>
 
       <div style={{ background: 'var(--bg)', color: 'var(--ink)', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(env(safe-area-inset-bottom) + 28px)' }}>
         {step === 1 && (
           <>
-            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>Sign in</h2>
+            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>{t('signin.title')}</h2>
             <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 6, lineHeight: 1.5 }}>
               Enter your phone number. We'll send a one-time code, then hold the gold star for HCS-U7 verification.
             </p>
             <div className="field">
-              <label>Phone number</label>
-              <input inputMode="tel" placeholder="+27 71 234 5678" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <label>{t('signin.phoneLabel')}</label>
+              <input inputMode="tel" placeholder={t('signin.phonePlaceholder')} value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
-            <button className="btn" style={{ marginTop: 18 }} onClick={toStep2} disabled={!phone.trim()}>Continue</button>
+            <button className="btn" style={{ marginTop: 18 }} onClick={toStep2} disabled={!phone.trim()}>{t('signin.continue')}</button>
           </>
         )}
 
         {step === 2 && (
           <>
-            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>Enter the code</h2>
+            <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>{t('signin.codeTitle')}</h2>
             <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 6, lineHeight: 1.5 }}>
-              Sent to {phone}. Reading it automatically for the pilot.
+              {t('signin.codeSubtitle', { phone })}
             </p>
             <div className="otp" style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               {otp.map((d, i) => (
@@ -82,14 +84,14 @@ export default function SignIn() {
                 }}>{d}</div>
               ))}
             </div>
-            <button className="btn" style={{ marginTop: 18 }} disabled={!otpFilled} onClick={toStep3}>Verify</button>
+            <button className="btn" style={{ marginTop: 18 }} disabled={!otpFilled} onClick={toStep3}>{t('signin.verify')}</button>
           </>
         )}
 
         {step === 3 && (
           <HoldToVerify
             onSuccess={(res) => { signIn(res); navigate('/') }}
-            title="HCS-U7 verification"
+            title={t('signin.verificationTitle')}
           />
         )}
       </div>

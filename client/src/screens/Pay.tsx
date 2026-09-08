@@ -5,6 +5,7 @@ import HoldToVerify from '../components/HoldToVerify'
 import { useWallet } from '../lib/wallet'
 import { useToast } from '../lib/toast'
 import { useAuth } from '../lib/auth'
+import { useI18n } from '../lib/i18n'
 
 type Stage = 'scan' | 'confirm' | 'receipt'
 
@@ -18,6 +19,7 @@ export default function Pay() {
   const { pay, state: wallet } = useWallet()
   const { toast } = useToast()
   const { status, isStale, signIn } = useAuth()
+  const { t } = useI18n()
   const [stage, setStage] = useState<Stage>('scan')
   const [cameraOk, setCameraOk] = useState<boolean | null>(null)
   const [settlement, setSettlement] = useState<Settlement>('retain')
@@ -82,7 +84,7 @@ export default function Pay() {
   }
 
   async function doPay() {
-    if (!wallet || wallet.balance < BILL + FEE) { toast('Insufficient balance'); return }
+    if (!wallet || wallet.balance < BILL + FEE) { toast(t('pay.toastInsufficient')); return }
     setPaying(true)
     try {
       const res = await pay(MERCHANT, BILL, FEE, settlement)
@@ -90,7 +92,7 @@ export default function Pay() {
       setStage('receipt')
       if (navigator.vibrate) navigator.vibrate([30, 40, 30])
     } catch {
-      toast('Payment failed')
+      toast(t('pay.toastPaymentFailed'))
     } finally {
       setPaying(false)
     }
@@ -112,7 +114,7 @@ export default function Pay() {
 
   return (
     <div className="screen">
-      <Header title="Pay" />
+      <Header title={t('pay.title')} />
       <div style={{ padding: '0 18px' }}>
         <Shield />
       </div>
@@ -120,11 +122,11 @@ export default function Pay() {
       {stage === 'scan' && (
         <>
           <div className="scan" style={{ margin: '8px 18px 0', background: 'var(--ink)', borderRadius: 22, aspectRatio: '1 / 1.05', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            {cameraOk === null && <p style={{ color: 'var(--muted)', fontSize: 13 }}>Starting camera...</p>}
+            {cameraOk === null && <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('pay.startingCamera')}</p>}
             {cameraOk === false && (
               <div style={{ textAlign: 'center', padding: 20 }}>
-                <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>Camera unavailable or permission denied.</p>
-                <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8, opacity: 0.7 }}>You can still simulate a scan for the demo.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>{t('pay.cameraDenied')}</p>
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8, opacity: 0.7 }}>{t('pay.cameraSimulate')}</p>
               </div>
             )}
             {cameraOk && (
@@ -141,65 +143,65 @@ export default function Pay() {
             )}
           </div>
           <div className="pad sec">
-            <p className="muted" style={{ textAlign: 'center' }}>Point the camera at a merchant QR code to pay with HAS.</p>
-            <button className="btn gold" style={{ marginTop: 16 }} onClick={simulateScan}>Simulate scan</button>
-            <p className="disc">The pilot uses a simulate button instead of a real QR decoder. The camera stream is real (requires permission), the decode is not.</p>
+            <p className="muted" style={{ textAlign: 'center' }}>{t('pay.pointCamera')}</p>
+            <button className="btn gold" style={{ marginTop: 16 }} onClick={simulateScan}>{t('pay.simulateScan')}</button>
+            <p className="disc">{t('pay.simulateDisc')}</p>
           </div>
         </>
       )}
 
       {stage === 'confirm' && (
         <div className="pad sec">
-          <h3>Confirm payment</h3>
+          <h3>{t('pay.confirmPayment')}</h3>
           <div className="card">
-            <div className="kv"><span>Merchant</span><b>{MERCHANT}</b></div>
-            <div className="kv"><span>Bill</span><b>{BILL} HAS</b></div>
-            <div className="kv"><span>Fee</span><b>{FEE} HAS</b></div>
-            <div className="kv"><span>Balance after</span><b style={{ color: balanceAfter < 0 ? 'var(--danger)' : 'var(--ink)' }}>{balanceAfter} HAS</b></div>
-            <div className="kv"><span>Authorisation</span><b>HCS-U7 session{status?.isHuman ? ' (verified)' : ''}</b></div>
-            <div className="kv"><span>Device biometrics</span><b>Face ID / Touch ID</b></div>
+            <div className="kv"><span>{t('pay.merchant')}</span><b>{MERCHANT}</b></div>
+            <div className="kv"><span>{t('pay.bill')}</span><b>{BILL} HAS</b></div>
+            <div className="kv"><span>{t('pay.fee')}</span><b>{FEE} HAS</b></div>
+            <div className="kv"><span>{t('pay.balanceAfter')}</span><b style={{ color: balanceAfter < 0 ? 'var(--danger)' : 'var(--ink)' }}>{balanceAfter} HAS</b></div>
+            <div className="kv"><span>{t('pay.hcsSession')}</span><b>{t('pay.hcsSession')}{status?.isHuman ? ` ${t('pay.verified')}` : ''}</b></div>
+            <div className="kv"><span>{t('pay.deviceBiometrics')}</span><b>{t('pay.faceId')}</b></div>
           </div>
           <div className="sec">
-            <h3>Merchant settlement</h3>
+            <h3>{t('pay.merchantSettlement')}</h3>
             <div className="card">
               <div className="tabs" style={{ marginBottom: 12 }}>
-                <button className={settlement === 'retain' ? 'on' : ''} onClick={() => setSettlement('retain')}>Retain HAS</button>
-                <button className={settlement === 'convert' ? 'on' : ''} onClick={() => setSettlement('convert')}>Convert SAR</button>
-                <button className={settlement === 'split' ? 'on' : ''} onClick={() => setSettlement('split')}>Split 20/80</button>
+                <button className={settlement === 'retain' ? 'on' : ''} onClick={() => setSettlement('retain')}>{t('pay.retainHas')}</button>
+                <button className={settlement === 'convert' ? 'on' : ''} onClick={() => setSettlement('convert')}>{t('pay.convertSar')}</button>
+                <button className={settlement === 'split' ? 'on' : ''} onClick={() => setSettlement('split')}>{t('pay.split')}</button>
               </div>
-              <div className="kv"><span>Merchant receives</span><b>{merchantReceivesFor(settlement)} {settlement === 'convert' ? 'SAR' : 'HAS'}</b></div>
-              {settlement === 'split' && <p className="disc">Split: 80% to merchant in SAR, 20% retained as HAS.</p>}
+              <div className="kv"><span>{t('pay.merchantReceives')}</span><b>{merchantReceivesFor(settlement)} {settlement === 'convert' ? 'SAR' : 'HAS'}</b></div>
+              {settlement === 'split' && <p className="disc">{t('pay.splitDisc')}</p>}
             </div>
           </div>
           <button className="btn gold" style={{ marginTop: 16 }} onClick={confirmPay} disabled={paying || (wallet ? wallet.balance < BILL + FEE : true)}>
-            {paying ? 'Authorising...' : `Pay ${BILL + FEE} HAS`}
+            {paying ? t('pay.authorising') : t('pay.payButton', { amt: BILL + FEE })}
           </button>
-          {wallet && wallet.balance < BILL + FEE && <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>Insufficient balance.</p>}
-          <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => setStage('scan')}>Back</button>
+          {wallet && wallet.balance < BILL + FEE && <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>{t('pay.insufficient')}</p>}
+          <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => setStage('scan')}>{t('common.back')}</button>
         </div>
       )}
 
       {stage === 'receipt' && receipt && (
         <div className="pad sec">
-          <h3>Receipt</h3>
+          <h3>{t('pay.receipt')}</h3>
           <div className="card" style={{ textAlign: 'center' }}>
             <div className="star" style={{ width: 56, height: 56, background: 'var(--ok)', margin: '0 auto 14px' }} />
-            <b style={{ fontFamily: 'var(--serif)', fontSize: 20 }}>Payment recorded</b>
+            <b style={{ fontFamily: 'var(--serif)', fontSize: 20 }}>{t('pay.paymentRecorded')}</b>
             <p className="muted" style={{ marginTop: 4 }}>{MERCHANT}</p>
           </div>
           <div className="card" style={{ marginTop: 12 }}>
-            <div className="kv"><span>Receipt no.</span><b>{receipt.no ?? '—'}</b></div>
-            <div className="kv"><span>Amount</span><b>{BILL + FEE} HAS</b></div>
-            <div className="kv"><span>Settlement</span><b>{settlement}</b></div>
-            <div className="kv"><span>Merchant receives</span><b>{receipt.merchantReceives} {settlement === 'convert' ? 'SAR' : 'HAS'}</b></div>
-            <div className="kv"><span>Ledger</span><b>settlement</b></div>
+            <div className="kv"><span>{t('pay.receiptNo')}</span><b>{receipt.no ?? '—'}</b></div>
+            <div className="kv"><span>{t('pay.amount')}</span><b>{BILL + FEE} HAS</b></div>
+            <div className="kv"><span>{t('pay.settlement')}</span><b>{settlement}</b></div>
+            <div className="kv"><span>{t('pay.merchantReceives')}</span><b>{receipt.merchantReceives} {settlement === 'convert' ? 'SAR' : 'HAS'}</b></div>
+            <div className="kv"><span>{t('pay.ledger')}</span><b>settlement</b></div>
           </div>
           <p className="disc">
             {wallet?.mockLedger
-              ? 'Pilot mock ledger: the receipt is recorded locally, not on a real chain. No blockchain confirmation is shown because none exists behind this pilot.'
-              : 'Receipt recorded on the ledger.'}
+              ? t('pay.mockReceiptDisc')
+              : t('pay.realReceiptDisc')}
           </p>
-          <button className="btn" style={{ marginTop: 12 }} onClick={() => setStage('scan')}>Done</button>
+          <button className="btn" style={{ marginTop: 12 }} onClick={() => setStage('scan')}>{t('common.done')}</button>
         </div>
       )}
 
@@ -209,9 +211,9 @@ export default function Pay() {
             <HoldToVerify
               onSuccess={onReverified}
               onCancel={() => setGating(false)}
-              title="Re-verify to pay"
-              subtitle="Your last verification has expired. Hold to re-verify before authorising this payment."
-              cancelLabel="Cancel payment"
+              title={t('pay.reverifyPayTitle')}
+              subtitle={t('pay.reverifyPaySub')}
+              cancelLabel={t('pay.cancelPayment')}
             />
           </div>
         </div>

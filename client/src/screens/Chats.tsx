@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import Shield from '../components/Shield'
 import { chatApi, type ChatAction } from '../lib/api'
 import { useToast } from '../lib/toast'
+import { useI18n } from '../lib/i18n'
 
 type ChatId = 'ai' | 'scholar' | 'community' | 'family'
 
@@ -29,14 +30,14 @@ interface ChatMeta {
   lastTs: number
 }
 
-const QUICK_REPLIES = [
-  'What time is next prayer?',
-  'What is my balance?',
-  'How do I calculate Zakat?',
-  'Where can I pay with HAS?',
-  'How do I send money?',
-  'Tell me about Ramadan',
-]
+const QUICK_REPLIES_KEYS = [
+  'chats.qr1',
+  'chats.qr2',
+  'chats.qr3',
+  'chats.qr4',
+  'chats.qr5',
+  'chats.qr6',
+] as const
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
@@ -49,27 +50,28 @@ function genWaveform(): number[] {
 export default function Chats() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { t } = useI18n()
   const [openChat, setOpenChat] = useState<ChatId | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [recording, setRecording] = useState(false)
   const [messages, setMessages] = useState<Record<ChatId, Msg[]>>({
-    ai: [{ id: 'init-ai', from: 'them', text: "Assalamu alaikum! I'm Hasanat AI. I can help with prayer times, your wallet, Zakat, giving, learning, and merchants. I never issue religious rulings — those go to the Scholar panel. How can I help?", ts: Date.now() - 60000 }],
-    scholar: [{ id: 'init-scholar', from: 'them', text: 'The Scholar panel is here for your religious questions. Send a message and a scholar will respond.', ts: Date.now() - 120000 }],
+    ai: [{ id: 'init-ai', from: 'them', text: t('chats.aiInitial'), ts: Date.now() - 60000 }],
+    scholar: [{ id: 'init-scholar', from: 'them', text: t('chats.scholarInitial'), ts: Date.now() - 120000 }],
     community: [
-      { id: 'init-com1', from: 'them', text: 'Yusuf: Wa alaikum salam! Don\'t forget jumu\'ah at 13:15.', ts: Date.now() - 90000 },
-      { id: 'init-com2', from: 'them', text: 'Aisha: Jazak Allah khairan for the reminder!', ts: Date.now() - 80000 },
+      { id: 'init-com1', from: 'them', text: t('chats.communityYusuf'), ts: Date.now() - 90000 },
+      { id: 'init-com2', from: 'them', text: t('chats.communityAisha'), ts: Date.now() - 80000 },
     ],
     family: [
-      { id: 'init-fam1', from: 'them', text: 'Fatima: Are we still on for iftar tonight?', ts: Date.now() - 70000 },
+      { id: 'init-fam1', from: 'them', text: t('chats.familyFatima'), ts: Date.now() - 70000 },
     ],
   })
   const [unread, setUnread] = useState<Record<ChatId, number>>({ ai: 0, scholar: 0, community: 2, family: 1 })
   const [lastMsg, setLastMsg] = useState<Record<ChatId, string>>({
-    ai: "How can I help?",
-    scholar: 'Send a message and a scholar will respond.',
-    community: 'Jazak Allah khairan for the reminder!',
-    family: 'Are we still on for iftar tonight?',
+    ai: t('chats.aiLast'),
+    scholar: t('chats.scholarLast'),
+    community: t('chats.communityLast'),
+    family: t('chats.familyLast'),
   })
   const [lastTs, setLastTs] = useState<Record<ChatId, number>>({
     ai: Date.now() - 60000, scholar: Date.now() - 120000, community: Date.now() - 80000, family: Date.now() - 70000,
@@ -107,7 +109,7 @@ export default function Chats() {
             addMsg('scholar', { id: `sch_a_${Date.now()}`, from: 'them', text: ack.text, ts: Date.now() })
             setLastMsg((prev) => ({ ...prev, scholar: ack.text }))
             setUnread((prev) => ({ ...prev, scholar: prev.scholar + 1 }))
-            toast('Scholar panel responded')
+            toast(t('chats.toastScholarResponded'))
           }, 3000)
         }
       } else if (chat === 'scholar') {
@@ -122,7 +124,7 @@ export default function Chats() {
         addMsg('family', { id: `fam_r_${Date.now()}`, from: 'them', text: res.text, ts: Date.now() })
       }
     } catch {
-      addMsg(chat, { id: `err_${Date.now()}`, from: 'them', text: 'Message could not be delivered. Try again.', ts: Date.now() })
+      addMsg(chat, { id: `err_${Date.now()}`, from: 'them', text: t('chats.deliveryFailed'), ts: Date.now() })
     } finally {
       setSending(false)
     }
@@ -141,7 +143,7 @@ export default function Chats() {
       const res = await chatApi.transcribe('')
       // Log the activity — this connects to the "Voluntary log" from Home (prompt 3)
       // In a full implementation, this would mark the voluntary log as "approved"
-      toast(`Activity logged · pending approval`)
+      toast(t('chats.toastActivityLogged'))
 
       if (chat === 'ai') {
         // AI responds to the transcribed text (mock transcription)
@@ -174,20 +176,20 @@ export default function Chats() {
   }
 
   function featureComingSoon(label: string) {
-    toast(`${label} — pilot feature coming soon`)
+    toast(t('chats.toastComingSoon', { label }))
   }
 
   // ─── Chat list view ─────────────────────────────────────────────────────────
   if (!openChat) {
     const chats: ChatMeta[] = [
-      { id: 'ai', name: 'Hasanat AI', sub: 'Assistant · prayer, wallet, giving', avatar: '✦', unread: unread.ai, lastMsg: lastMsg.ai, lastTs: lastTs.ai },
-      { id: 'scholar', name: 'Scholar panel', sub: 'Religious questions · private', avatar: '☪', unread: unread.scholar, lastMsg: lastMsg.scholar, lastTs: lastTs.scholar },
-      { id: 'community', name: 'Masjid Al-Rahma', sub: 'Community · 124 members', avatar: '🕌', unread: unread.community, lastMsg: lastMsg.community, lastTs: lastTs.community },
-      { id: 'family', name: 'Family', sub: 'Ben, Fatima, Omar', avatar: '👪', unread: unread.family, lastMsg: lastMsg.family, lastTs: lastTs.family },
+      { id: 'ai', name: t('chats.aiName'), sub: t('chats.aiSub'), avatar: '✦', unread: unread.ai, lastMsg: lastMsg.ai, lastTs: lastTs.ai },
+      { id: 'scholar', name: t('chats.scholarName'), sub: t('chats.scholarSub'), avatar: '☪', unread: unread.scholar, lastMsg: lastMsg.scholar, lastTs: lastTs.scholar },
+      { id: 'community', name: t('chats.communityName'), sub: t('chats.communitySub'), avatar: '🕌', unread: unread.community, lastMsg: lastMsg.community, lastTs: lastTs.community },
+      { id: 'family', name: t('chats.familyName'), sub: t('chats.familySub'), avatar: '👪', unread: unread.family, lastMsg: lastMsg.family, lastTs: lastTs.family },
     ]
     return (
       <div className="screen">
-        <Header title="Chats" right={<Shield />} />
+        <Header title={t('chats.title')} right={<Shield />} />
         <div className="pad sec">
           {chats.map((c) => (
             <div className="card" key={c.id} style={{ marginTop: 8, cursor: 'pointer' }} onClick={() => openChatById(c.id)}>
@@ -211,7 +213,7 @@ export default function Chats() {
   }
 
   // ─── Chat thread view ───────────────────────────────────────────────────────
-  const chatNames: Record<ChatId, string> = { ai: 'Hasanat AI', scholar: 'Scholar panel', community: 'Masjid Al-Rahma', family: 'Family' }
+  const chatNames: Record<ChatId, string> = { ai: t('chats.aiName'), scholar: t('chats.scholarName'), community: t('chats.communityName'), family: t('chats.familyName') }
   const chatAvatars: Record<ChatId, string> = { ai: '✦', scholar: '☪', community: '🕌', family: '👪' }
   const msgs = messages[openChat]
 
@@ -219,11 +221,11 @@ export default function Chats() {
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
       <Header
         title={chatNames[openChat]}
-        left={<button className="ibtn" onClick={() => setOpenChat(null)} aria-label="Back">‹</button>}
+        left={<button className="ibtn" onClick={() => setOpenChat(null)} aria-label={t('header.back')}>‹</button>}
         right={
           <>
-            <button className="ibtn" onClick={() => featureComingSoon('Voice call')} aria-label="Call">📞</button>
-            <button className="ibtn" onClick={() => featureComingSoon('Attachments')} aria-label="Attach">📎</button>
+            <button className="ibtn" onClick={() => featureComingSoon(t('chats.toastVoiceCall'))} aria-label={t('chats.call')}>📞</button>
+            <button className="ibtn" onClick={() => featureComingSoon(t('chats.toastAttachments'))} aria-label={t('chats.attach')}>📎</button>
           </>
         }
       />
@@ -277,7 +279,7 @@ export default function Chats() {
         {sending && (
           <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 8 }}>
             <div className="cav" style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, marginRight: 8 }}>...</div>
-            <div style={{ background: 'var(--bubble-in)', borderRadius: 18, padding: '12px 16px', fontSize: 13, color: 'var(--muted)' }}>typing...</div>
+            <div style={{ background: 'var(--bubble-in)', borderRadius: 18, padding: '12px 16px', fontSize: 13, color: 'var(--muted)' }}>{t('chats.typing')}</div>
           </div>
         )}
       </div>
@@ -285,11 +287,11 @@ export default function Chats() {
       {/* Quick replies (AI only) */}
       {openChat === 'ai' && (
         <div style={{ display: 'flex', gap: 6, padding: '8px 16px', overflowX: 'auto', background: 'var(--bg)' }}>
-          {QUICK_REPLIES.map((q) => (
-            <button key={q} onClick={() => sendText('ai', q)} style={{
+          {QUICK_REPLIES_KEYS.map((k) => (
+            <button key={k} onClick={() => sendText('ai', t(k))} style={{
               fontSize: 12, padding: '6px 12px', borderRadius: 16, whiteSpace: 'nowrap',
               border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer',
-            }}>{q}</button>
+            }}>{t(k)}</button>
           ))}
         </div>
       )}
@@ -298,7 +300,7 @@ export default function Chats() {
       <div style={{ display: 'flex', gap: 8, padding: '10px 16px calc(env(safe-area-inset-bottom) + 10px)', background: 'var(--surface)', borderTop: '1px solid var(--line)', alignItems: 'center' }}>
         <input
           style={{ flex: 1, border: '1px solid var(--line)', borderRadius: 22, padding: '10px 16px', fontSize: 14, background: 'var(--bg)', color: 'var(--ink)' }}
-          placeholder={openChat === 'scholar' ? 'Ask the Scholar panel...' : 'Message...'}
+          placeholder={openChat === 'scholar' ? t('chats.scholarPlaceholder') : t('chats.messagePlaceholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') sendText(openChat, input) }}
@@ -317,13 +319,13 @@ export default function Chats() {
               width: 44, height: 44, borderRadius: '50%',
               background: recording ? 'var(--danger)' : 'var(--accent)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
-            }} aria-label="Hold to record"
+            }} aria-label={t('chats.holdToRecord')}
           >🎤</button>
         )}
       </div>
       {recording && (
         <div style={{ position: 'fixed', bottom: 80, left: 0, right: 0, textAlign: 'center', fontSize: 12, color: 'var(--danger)', fontWeight: 500 }}>
-          Recording... release to send
+          {t('chats.recordingHint')}
         </div>
       )}
     </div>

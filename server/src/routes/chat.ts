@@ -22,9 +22,10 @@ r.post('/ai', (req, res) => {
   res.json(reply)
 })
 
-// Scholar panel ack — static, never AI-generated.
-r.post('/scholar', (_req, res) => {
-  res.json({ text: scholarAck() })
+// Scholar panel ack — static, never AI-generated. Detects Arabic from original message.
+r.post('/scholar', (req, res) => {
+  const { message } = req.body ?? {}
+  res.json({ text: scholarAck(typeof message === 'string' ? message : undefined) })
 })
 
 // Community mock reply — clearly mock, no AI pretending to be human.
