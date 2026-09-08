@@ -8,6 +8,7 @@ import { useWallet } from '../lib/wallet'
 import { useToast } from '../lib/toast'
 import { useI18n } from '../lib/i18n'
 import { prayerApi, type PrayerSchedule } from '../lib/api'
+import { usePrefs } from '../lib/prefs'
 
 interface DailyAction {
   id: string
@@ -36,6 +37,7 @@ export default function Home() {
   const { state: wallet } = useWallet()
   const { toast } = useToast()
   const { t } = useI18n()
+  const { prefs } = usePrefs()
   const [schedule, setSchedule] = useState<PrayerSchedule | null>(null)
   const [countdown, setCountdown] = useState(0)
   const [actions, setActions] = useState<DailyAction[]>(initialActions)
@@ -51,16 +53,17 @@ export default function Home() {
     log: t('home.actionLogSub'),
   }
 
-  // Load prayer schedule from backend (real solar calc).
+  // Load prayer schedule from backend (real solar calc, user prefs for method/madhab).
   useEffect(() => {
     let cancelled = false
-    prayerApi.schedule().then((s) => { if (!cancelled) { setSchedule(s); setCountdown(s.secondsUntilNext) } }).catch(() => {})
+    const params = { method: prefs.calcMethod, madhab: prefs.madhab }
+    prayerApi.schedule(params).then((s) => { if (!cancelled) { setSchedule(s); setCountdown(s.secondsUntilNext) } }).catch(() => {})
     // Refresh schedule every 5 min in case of day rollover.
     const refreshId = setInterval(() => {
-      prayerApi.schedule().then((s) => { if (!cancelled) setSchedule(s) }).catch(() => {})
+      prayerApi.schedule(params).then((s) => { if (!cancelled) setSchedule(s) }).catch(() => {})
     }, 5 * 60 * 1000)
     return () => { cancelled = true; clearInterval(refreshId) }
-  }, [])
+  }, [prefs.calcMethod, prefs.madhab])
 
   // Live countdown to the second.
   useEffect(() => {

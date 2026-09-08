@@ -83,9 +83,13 @@ export interface PrayerTime { name: string; time: string; asrHanafi?: string }
 export interface PrayerSchedule {
   date: string; hijri: string; city: string; times: PrayerTime[]
   nextIndex: number; secondsUntilNext: number; nextName: string
+  method: string; madhab: string
 }
 export const prayerApi = {
-  schedule: () => api<PrayerSchedule>('/prayer'),
+  schedule: (params?: { method?: string; madhab?: string }) =>
+    api<PrayerSchedule>(`/prayer${params ? '?' + new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v) as [string, string][]
+    ).toString() : ''}`),
 }
 
 // ─── Wallet ──────────────────────────────────────────────────────────────────

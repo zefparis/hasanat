@@ -4,7 +4,12 @@
  *
  * This is a real astronomical calculation, not a static table. The city is
  * configurable via env (HASANAT_CITY_LAT/LON/TZ). Default: Johannesburg.
+ *
+ * Calculation method and madhab are configurable via getSchedule() params.
  */
+
+export type CalcMethod = 'MWL' | 'ISNA' | 'UMM_QURA' | 'EGYPTIAN' | 'KARACHI'
+export type Madhab = 'standard' | 'hanafi'
 
 export interface PrayerTime {
   name: 'Fajr' | 'Sunrise' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha'
@@ -24,13 +29,30 @@ export interface PrayerSchedule {
   /** seconds until the next prayer */
   secondsUntilNext: number
   nextName: string
+  /** Calculation method used */
+  method: CalcMethod
+  /** Madhab used for primary Asr time */
+  madhab: Madhab
+}
+
+interface MethodConfig {
+  fajrAngle: number
+  ishaAngle: number | null // null = use fixed minutes after Maghrib
+  ishaMinutesAfterMaghrib: number | null
+}
+
+const METHODS: Record<CalcMethod, MethodConfig> = {
+  MWL: { fajrAngle: 18, ishaAngle: 17, ishaMinutesAfterMaghrib: null },
+  ISNA: { fajrAngle: 15, ishaAngle: 15, ishaMinutesAfterMaghrib: null },
+  UMM_QURA: { fajrAngle: 18.5, ishaAngle: null, ishaMinutesAfterMaghrib: 90 },
+  EGYPTIAN: { fajrAngle: 19.5, ishaAngle: 17.5, ishaMinutesAfterMaghrib: null },
+  KARACHI: { fajrAngle: 18, ishaAngle: 18, ishaMinutesAfterMaghrib: null },
 }
 
 const LAT = Number(process.env.HASANAT_CITY_LAT ?? -26.2041)
 const LON = Number(process.env.HASANAT_CITY_LON ?? 28.0473)
 const TZ = Number(process.env.HASANAT_CITY_TZ ?? 2)
 const CITY = process.env.HASANAT_CITY_NAME ?? 'Johannesburg'
-const FAJR_ISHA_ANGLE = 18
 
 const RAD = Math.PI / 180
 
@@ -61,7 +83,7 @@ function cityNow(): Date {
   return new Date(d.getTime() + (d.getTimezoneOffset() + TZ * 60) * 60000)
 }
 
-function calcTimes(dt: Date): PrayerTime[] {
+function calcTimes(dt: Date, method: CalcMethod, madhab: Madhab): PrayerTime[] {
   const y = dt.getFullYear()
   const m = dt.getMonth() + 1
   const d = dt.getDate()
@@ -69,6 +91,7 @@ function calcTimes(dt: Date): PrayerTime[] {
   const decl = sp.decl
   const lat = LAT
   const dh = 12 - LON / 15 - sp.eqt + TZ
+  const cfg = METHODS[method]
 
   function T(ang: number): number {
     const v = (-Math.sin(ang * RAD) - Math.sin(lat * RAD) * Math.sin(decl * RAD)) /
@@ -92,16 +115,35 @@ function calcTimes(dt: Date): PrayerTime[] {
     if (M === 60) { H++; M = 0 }
     return [H, M]
   }
+  function addMin(h: number, mins: number): string {
+    return hm(h + mins / 60)
+  }
 
-  const a1 = hmParts(dh + A(1))
-  const a2 = hmParts(dh + A(2))
+  const asrStandard = hmParts(dh + A(1))
+  const asrHanafi = hmParts(dh + A(2))
+  const maghribTime = hm(dh + T(0.833))
+
+  // Isha: angle-based or fixed minutes after Maghrib
+  let ishaTime: string
+  if (cfg.ishaAngle !== null) {
+    ishaTime = hm(dh + T(cfg.ishaAngle))
+  } else {
+    // Fixed minutes after Maghrib (e.g. Umm al-Qura: 90 min)
+    const [mh, mm] = maghribTime.split(':').map(Number)
+    ishaTime = addMin(mh + mm / 60, cfg.ishaMinutesAfterMaghrib ?? 90)
+  }
+
+  // Asr: primary time depends on madhab; the other is shown as secondary
+  const asrPrimary = madhab === 'hanafi' ? hm(dh + A(2)) : hm(dh + A(1))
+  const asrSecondary = madhab === 'hanafi' ? hm(dh + A(1)) : hm(dh + A(2))
+
   return [
-    { name: 'Fajr', time: hm(dh - T(FAJR_ISHA_ANGLE)) },
+    { name: 'Fajr', time: hm(dh - T(cfg.fajrAngle)) },
     { name: 'Sunrise', time: hm(dh - T(0.833)) },
     { name: 'Dhuhr', time: hm(dh) },
-    { name: 'Asr', time: hm(dh + A(1)), asrHanafi: hm(dh + A(2)) },
-    { name: 'Maghrib', time: hm(dh + T(0.833)) },
-    { name: 'Isha', time: hm(dh + T(FAJR_ISHA_ANGLE)) },
+    { name: 'Asr', time: asrPrimary, asrHanafi: asrSecondary },
+    { name: 'Maghrib', time: maghribTime },
+    { name: 'Isha', time: ishaTime },
   ]
 }
 
@@ -144,9 +186,9 @@ function parseHHMM(t: string): number {
   return h * 3600 + m * 60
 }
 
-export function getSchedule(): PrayerSchedule {
+export function getSchedule(method: CalcMethod = 'MWL', madhab: Madhab = 'standard'): PrayerSchedule {
   const now = cityNow()
-  const times = calcTimes(now)
+  const times = calcTimes(now, method, madhab)
   const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
 
   let nextIndex = 0
@@ -175,5 +217,7 @@ export function getSchedule(): PrayerSchedule {
     nextIndex,
     secondsUntilNext,
     nextName: times[nextIndex].name,
+    method,
+    madhab,
   }
 }

@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { WalletProvider } from './lib/wallet'
 import { ToastProvider } from './lib/toast'
 import { I18nProvider, useI18n } from './lib/i18n'
+import { PrefsProvider } from './lib/prefs'
 import Nav from './components/Nav'
 import SignIn from './screens/SignIn'
 import Home from './screens/Home'
@@ -59,7 +60,8 @@ export default function App() {
   return (
     <I18nProvider>
       <ThemeProvider>
-        <AuthProvider>
+        <PrefsProvider>
+          <AuthProvider>
           <WalletProvider>
             <ToastProvider>
               <BrowserRouter>
@@ -67,7 +69,8 @@ export default function App() {
               </BrowserRouter>
             </ToastProvider>
           </WalletProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </PrefsProvider>
       </ThemeProvider>
     </I18nProvider>
   )

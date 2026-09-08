@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react'
-import { useAuth, REVERIFY_THRESHOLD_MS } from '../lib/auth'
+import { useAuth, DEFAULT_REVERIFY_THRESHOLD_MS } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
+
+/** Read the configurable threshold from localStorage (same logic as auth.tsx). */
+function getThreshold(): number {
+  try {
+    const raw = localStorage.getItem('hasanat.prefs')
+    if (!raw) return DEFAULT_REVERIFY_THRESHOLD_MS
+    const prefs = JSON.parse(raw) as { sessionTimeoutMin?: number }
+    if (typeof prefs.sessionTimeoutMin === 'number') {
+      return Math.max(1, Math.min(15, prefs.sessionTimeoutMin)) * 60_000
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_REVERIFY_THRESHOLD_MS
+}
 
 /** HCS-U7 session badge — shows the age of the last real verification, not a server rotation counter. */
 export default function Shield() {
@@ -30,7 +43,7 @@ export default function Shield() {
 
   const ageMs = now - verifiedAt
   const ageSec = Math.floor(ageMs / 1000)
-  const stale = ageMs > REVERIFY_THRESHOLD_MS
+  const stale = ageMs > getThreshold()
 
   const label = stale
     ? t('shield.reverifyNeeded')

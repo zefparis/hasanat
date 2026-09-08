@@ -69,7 +69,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     async function tick() {
       try {
-        const res = await fetch('/api/prayer')
+        // Read prayer prefs from localStorage to pass method/madhab to the API
+        let prayerParams = ''
+        try {
+          const raw = localStorage.getItem('hasanat.prefs')
+          if (raw) {
+            const p = JSON.parse(raw) as { calcMethod?: string; madhab?: string }
+            const sp = new URLSearchParams()
+            if (p.calcMethod) sp.set('method', p.calcMethod)
+            if (p.madhab) sp.set('madhab', p.madhab)
+            prayerParams = sp.toString() ? '?' + sp.toString() : ''
+          }
+        } catch { /* ignore */ }
+        const res = await fetch('/api/prayer' + prayerParams)
         if (!res.ok || cancelled) return
         const schedule = await res.json()
         const nowSec = new Date().getHours() * 3600 + new Date().getMinutes() * 60

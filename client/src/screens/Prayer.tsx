@@ -6,6 +6,7 @@ import { useToast } from '../lib/toast'
 import { useAuth } from '../lib/auth'
 import { prayerApi, presenceApi, type PrayerSchedule, type CheckInWindow, type CheckInResult, type CheckInHistoryEntry } from '../lib/api'
 import { useI18n } from '../lib/i18n'
+import { usePrefs } from '../lib/prefs'
 
 // Qibla bearing from Johannesburg to Kaaba: ~70° from North
 const QIBLA_BEARING = 70
@@ -15,6 +16,7 @@ export default function Prayer() {
   const { toast } = useToast()
   const { status } = useAuth()
   const { t } = useI18n()
+  const { prefs } = usePrefs()
   const [schedule, setSchedule] = useState<PrayerSchedule | null>(null)
   const [window_, setWindow] = useState<CheckInWindow | null>(null)
   const [history, setHistory] = useState<CheckInHistoryEntry[]>([])
@@ -28,7 +30,7 @@ export default function Prayer() {
   // Load prayer schedule + check-in window + history
   useEffect(() => {
     function loadAll() {
-      prayerApi.schedule().then(setSchedule).catch(() => {})
+      prayerApi.schedule({ method: prefs.calcMethod, madhab: prefs.madhab }).then(setSchedule).catch(() => {})
       presenceApi.window().then(setWindow).catch(() => {})
       presenceApi.history().then((h) => setHistory(h.history)).catch(() => {})
       presenceApi.today().then((t) => {
@@ -40,7 +42,7 @@ export default function Prayer() {
     loadAll()
     const id = setInterval(loadAll, 30_000) // refresh window every 30s
     return () => clearInterval(id)
-  }, [])
+  }, [prefs.calcMethod, prefs.madhab])
 
   // DeviceOrientationEvent for Qibla compass
   useEffect(() => {

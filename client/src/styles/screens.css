@@ -211,3 +211,24 @@
 [dir='rtl'] .checks div{direction:rtl}
 [dir='rtl'] .srch{direction:rtl}
 [dir='rtl'] .qr-replies{direction:rtl}
+
+/* ─── Toggle switch (Profile preferences) ──────────────────────────────────── */
+.toggle { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 100%; height: 100%; position: absolute; margin: 0; cursor: pointer; }
+.toggle .track { position: absolute; inset: 0; background: var(--surface2); border-radius: 13px; transition: background .2s; }
+.toggle .thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: var(--ink); border-radius: 50%; transition: transform .2s, background .2s; }
+.toggle input:checked + .track { background: var(--primary); }
+.toggle input:checked + .track .thumb { transform: translateX(18px); background: var(--on); }
+[dir='rtl'] .toggle .thumb { left: auto; right: 3px; }
+[dir='rtl'] .toggle input:checked + .track .thumb { transform: translateX(-18px); }
+
+/* ─── Select dropdown (Profile preferences) ────────────────────────────────── */
+.sel { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 14px; font-family: var(--sans); cursor: pointer; }
+.sel:focus { outline: 1px solid var(--primary); }
+
+/* ─── Expandable section ────────────────────────────────────────────────────── */
+.expand { cursor: pointer; }
+.expand .chev { transition: transform .2s; }
+.expand.open .chev { transform: rotate(90deg); }
+[dir='rtl'] .expand .chev { transform: rotate(180deg); }
+[dir='rtl'] .expand.open .chev { transform: rotate(90deg); }

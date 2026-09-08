@@ -2,9 +2,23 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { hcsApi, type HcsSessionStatusRes, type HcsVerifyRes } from './api'
 
 const SID_KEY = 'hasanat.sid'
+const PREFS_KEY = 'hasanat.prefs'
 
-/** A verification older than this is considered stale; sensitive actions re-trigger hold-to-verify. */
-export const REVERIFY_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
+/** Default re-verify threshold (5 min). Can be overridden by user preference. */
+export const DEFAULT_REVERIFY_THRESHOLD_MS = 5 * 60 * 1000
+
+/** Read the configurable session timeout from localStorage prefs. */
+function getReverifyThreshold(): number {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (!raw) return DEFAULT_REVERIFY_THRESHOLD_MS
+    const prefs = JSON.parse(raw) as { sessionTimeoutMin?: number }
+    if (typeof prefs.sessionTimeoutMin === 'number') {
+      return Math.max(1, Math.min(15, prefs.sessionTimeoutMin)) * 60_000
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_REVERIFY_THRESHOLD_MS
+}
 
 interface AuthCtx {
   sid: string | null
@@ -85,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifiedAt = status?.verifiedAt ?? null
   const isStale = () => {
     if (!verifiedAt) return true
-    return Date.now() - verifiedAt > REVERIFY_THRESHOLD_MS
+    return Date.now() - verifiedAt > getReverifyThreshold()
   }
 
   return <Ctx.Provider value={{ sid, status, loading, verifiedAt, isStale, signIn, signOut }}>{children}</Ctx.Provider>
