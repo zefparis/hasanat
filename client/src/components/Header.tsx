@@ -9,15 +9,17 @@ interface HeaderProps {
   dark?: boolean
   back?: boolean
   themeToggle?: boolean
+  left?: ReactNode
   right?: ReactNode
 }
 
-export default function Header({ title, subtitle, dark, back, themeToggle, right }: HeaderProps) {
+export default function Header({ title, subtitle, dark, back, themeToggle, left, right }: HeaderProps) {
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
   return (
     <header className={`hdr ${dark ? 'dark' : ''}`}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        {left}
         {back && (
           <button className="back" onClick={() => navigate(-1)} aria-label="Back">
             <Back />

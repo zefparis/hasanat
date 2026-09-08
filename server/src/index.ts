@@ -4,6 +4,8 @@ import morgan from 'morgan'
 import hasanatRoutes from './routes/hasanat'
 import prayerRoutes from './routes/prayer'
 import walletRoutes from './routes/wallet'
+import chatRoutes from './routes/chat'
+import giveRoutes from './routes/give'
 
 const app = express()
 app.use(cors())
@@ -22,6 +24,12 @@ app.use('/api/prayer', prayerRoutes)
 
 // Wallet / ledger — pilot mock (no real value moves).
 app.use('/api/wallet', walletRoutes)
+
+// Chat — Hasanat AI (deterministic), Scholar ack, community/Family mock.
+app.use('/api/chat', chatRoutes)
+
+// Give — Zakat calculator (indicative), Sadaqah, campaigns.
+app.use('/api/give', giveRoutes)
 
 const port = Number(process.env.PORT) || 8787
 app.listen(port, () => {

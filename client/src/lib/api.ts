@@ -119,3 +119,33 @@ export const walletApi = {
   pay: (merchant: string, amount: number, fee: number, settlement: 'retain' | 'convert' | 'split') =>
     api<PayRes>('/wallet/pay', { method: 'POST', body: JSON.stringify({ merchant, amount, fee, settlement }) }),
 }
+
+// ─── Chat ────────────────────────────────────────────────────────────────────
+export interface ChatAction { label: string; route: string }
+export interface ChatReply {
+  text: string
+  actions?: ChatAction[]
+  escalateToScholar?: boolean
+}
+export const chatApi = {
+  ai: (message: string) => api<ChatReply>('/chat/ai', { method: 'POST', body: JSON.stringify({ message }) }),
+  scholar: () => api<{ text: string }>('/chat/scholar', { method: 'POST' }),
+  community: (userName: string) => api<{ text: string }>('/chat/community', { method: 'POST', body: JSON.stringify({ userName }) }),
+  family: (userName: string) => api<{ text: string }>('/chat/family', { method: 'POST', body: JSON.stringify({ userName }) }),
+  transcribe: (audio: string) => api<{ text: string; mock: boolean }>('/chat/transcribe', { method: 'POST', body: JSON.stringify({ audio }) }),
+}
+
+// ─── Give ────────────────────────────────────────────────────────────────────
+export interface ZakatInput { cash: number; gold: number; silver: number; businessAssets: number; debts: number }
+export interface ZakatResult {
+  netAssetBase: number; zakatDue: number; nisab: number; aboveNisab: boolean; disclaimer: string
+}
+export interface Campaign {
+  id: string; title: string; subtitle: string; raised: number; goal: number; verified: boolean; sponsorPool: number
+}
+export const giveApi = {
+  zakat: (input: ZakatInput) => api<ZakatResult>('/give/zakat', { method: 'POST', body: JSON.stringify(input) }),
+  payZakat: (amount: number) => api<{ entry: LedgerEntry; balance: number }>('/give/zakat/pay', { method: 'POST', body: JSON.stringify({ amount }) }),
+  sadaqah: (amount: number, campaignId?: string) => api<{ entry: LedgerEntry; balance: number }>('/give/sadaqah', { method: 'POST', body: JSON.stringify({ amount, campaignId }) }),
+  campaigns: () => api<{ campaigns: Campaign[] }>('/give/campaigns'),
+}
