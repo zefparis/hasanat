@@ -8,6 +8,7 @@ import chatRoutes from './routes/chat'
 import giveRoutes from './routes/give'
 import presenceRoutes from './routes/presence'
 import exploreRoutes from './routes/explore'
+import { startBackupScheduler } from './services/backup'
 
 const app = express()
 app.use(cors())
@@ -43,4 +44,6 @@ const port = Number(process.env.PORT) || 8787
 app.listen(port, () => {
   // eslint-disable-next-line no-console
   console.log(`Hasanat server (pilot mock) listening on :${port}`)
+  // Start periodic SQLite backups (native better-sqlite3 backup, crash-consistent)
+  startBackupScheduler()
 })
