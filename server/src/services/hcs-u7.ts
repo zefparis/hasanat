@@ -6,13 +6,18 @@
  * and never sends raw biometrics upstream directly.
  *
  * Configuration (env):
- *   HCS_U7_BASE_URL       — public entry, e.g. https://api.hcs-u7.org
- *   HV_API_URL            — Hybrid Vector API base, e.g. https://hybrid-vector-api-m5xt.onrender.com
- *   HV_API_KEY            — server-side API key injected on upstream calls
+ *   HCS_U7_BASE_URL       — public entry (Worker), e.g. https://api.hcs-u7.org
+ *   HV_API_KEY            — server-side API key sent as X-API-Key through the Worker
  *   HASANAT_TENANT_ID     — tenant override forced server-side (client cannot spoof)
  *   HCS_U7_MOCK           — "1" forces honest local mock mode (pilot without creds)
  *
- * When HCS_U7_MOCK=1 OR the upstream env vars are missing, calls resolve against
+ * submitVerification() routes through the HCS-U7 Worker at
+ *   {HCS_BASE}/hv/demoguard/verify
+ * The Worker adds X-HCS-Worker-Auth, WAF, bot detection, and header sanitization
+ * before forwarding to the Hybrid Vector API. Hasanat still sends X-API-Key
+ * (HV_API_KEY) which passes through the Worker to the backend's apiKeyMiddleware.
+ *
+ * When HCS_U7_MOCK=1 OR HV_API_KEY is missing, calls resolve against
  * a clearly-labeled local mock so the pilot runs in front of Benoit/Chairman
  * without real credentials. The code path is identical — only the transport
  * target changes. Set the env vars and unset HCS_U7_MOCK to go live.
@@ -23,7 +28,7 @@
  */
 
 const EXPLICIT_MOCK = process.env.HCS_U7_MOCK === '1'
-const CREDS_MISSING = !process.env.HV_API_URL || !process.env.HV_API_KEY
+const CREDS_MISSING = !process.env.HV_API_KEY
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 // In production, missing HCS-U7 credentials WITHOUT an explicit HCS_U7_MOCK=1
@@ -32,8 +37,8 @@ const IS_PROD = process.env.NODE_ENV === 'production'
 if (IS_PROD && CREDS_MISSING && !EXPLICIT_MOCK) {
   // eslint-disable-next-line no-console
   console.error(
-    '\n[FATAL] HCS-U7 credentials missing in production (HV_API_URL / HV_API_KEY).\n' +
-    'Set them, or set HCS_U7_MOCK=1 to explicitly run in mock mode.\n' +
+    '\n[FATAL] HCS-U7 credentials missing in production (HV_API_KEY).\n' +
+    'Set it, or set HCS_U7_MOCK=1 to explicitly run in mock mode.\n' +
     'Refusing to start — silent fallback to mock in prod is disabled.\n',
   )
   process.exit(1)
@@ -45,7 +50,7 @@ if (MOCK) {
   // eslint-disable-next-line no-console
   console.warn(
     `\n[WARN] ════════════════════════════════════════════════════════════\n` +
-    `[WARN]  HCS-U7 MOCK MODE ACTIVE${EXPLICIT_MOCK ? ' (explicit HCS_U7_MOCK=1)' : ' (HV_API_URL/HV_API_KEY missing)'}\n` +
+    `[WARN]  HCS-U7 MOCK MODE ACTIVE${EXPLICIT_MOCK ? ' (explicit HCS_U7_MOCK=1)' : ' (HV_API_KEY missing)'}\n` +
     `[WARN]  All HCS-U7 calls resolve locally. No real identity verification.\n` +
     `[WARN]  This is fine for the pilot — NOT for production with real users.\n` +
     `[WARN] ════════════════════════════════════════════════════════════\n`,
@@ -53,7 +58,6 @@ if (MOCK) {
 }
 
 const HCS_BASE = (process.env.HCS_U7_BASE_URL || 'https://api.hcs-u7.org').replace(/\/+$/, '')
-const HV_BASE = (process.env.HV_API_URL || '').replace(/\/+$/, '')
 const HV_API_KEY = process.env.HV_API_KEY || ''
 const TENANT_ID = process.env.HASANAT_TENANT_ID || 'hasanat'
 
@@ -125,7 +129,11 @@ interface VerifyPayload {
 }
 
 /**
- * Submit verification. Real call: POST /demoguard/verify on the Hybrid Vector API.
+ * Submit verification. Routed through the HCS-U7 Worker:
+ *   POST {HCS_BASE}/hv/demoguard/verify
+ * The Worker adds X-HCS-Worker-Auth, WAF, bot detection, and header sanitization
+ * before forwarding to the Hybrid Vector API. Hasanat sends X-API-Key (HV_API_KEY)
+ * which passes through the Worker to the backend's apiKeyMiddleware.
  * The server forces tenant_id and source — the client cannot spoof either.
  * Response is sanitized: raw biometrics, PII, JWTs, debug fields are stripped
  * before reaching the browser (see sanitizeVerification).
@@ -146,7 +154,7 @@ export async function submitVerification(payload: VerifyPayload): Promise<HcsVer
       signals: payload.signals ?? {},
     },
   }
-  const res = await fetchUpstream(`${HV_BASE}/demoguard/verify`, {
+  const res = await fetchUpstream(`${HCS_BASE}/hv/demoguard/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-Key': HV_API_KEY },
     body: JSON.stringify(body),

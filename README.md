@@ -30,15 +30,16 @@ Client dev proxies `/api` to `http://localhost:8787`.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `HCS_U7_BASE_URL` | Public HCS-U7 entry | `https://api.hcs-u7.org` |
-| `HV_API_URL` | Hybrid Vector API base | — |
-| `HV_API_KEY` | Server-side API key for upstream calls | — |
+| `HCS_U7_BASE_URL` | Worker public entry | `https://api.hcs-u7.org` |
+| `HV_API_KEY` | Server-side API key (X-API-Key through the Worker) | — |
 | `HASANAT_TENANT_ID` | Tenant override (forced server-side) | `hasanat` |
 | `HCS_U7_MOCK` | Forces honest local mock mode (pilot without creds) | — |
 | `NODE_ENV` | Production flag | — |
 | `PORT` | Server port | `8787` |
 
-When `HCS_U7_MOCK=1` **or** `HV_API_URL`/`HV_API_KEY` are missing, calls resolve against a clearly-labeled local mock. The code path is identical — only the transport target changes. Set the env vars and unset `HCS_U7_MOCK` to go live.
+When `HCS_U7_MOCK=1` **or** `HV_API_KEY` is missing, calls resolve against a clearly-labeled local mock. The code path is identical — only the transport target changes. Set the env vars and unset `HCS_U7_MOCK` to go live.
+
+`submitVerification()` routes through the HCS-U7 Worker at `{HCS_BASE}/hv/demoguard/verify`. The Worker adds X-HCS-Worker-Auth, WAF, bot detection, and header sanitization. Hasanat sends `X-API-Key` (HV_API_KEY) which passes through to the backend.
 
 ## HCS-U7 integration
 

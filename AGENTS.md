@@ -45,19 +45,22 @@ The Hasanat Express backend is the ONLY caller of the HCS-U7 / Hybrid Vector API
 The browser client never sees an API key and never sends raw biometrics upstream.
 
 ### Env vars (server)
-- `HCS_U7_BASE_URL` — public entry, e.g. `https://api.hcs-u7.org`
-- `HV_API_URL` — Hybrid Vector API base
-- `HV_API_KEY` — server-side API key injected on upstream calls
+- `HCS_U7_BASE_URL` — Worker public entry, e.g. `https://api.hcs-u7.org`
+- `HV_API_KEY` — server-side API key sent as X-API-Key through the Worker
 - `HASANAT_TENANT_ID` — tenant override forced server-side (client cannot spoof)
 - `HCS_U7_MOCK=1` — forces honest local mock mode (pilot without creds)
 
-When `HCS_U7_MOCK=1` OR `HV_API_URL`/`HV_API_KEY` are missing, calls resolve against
+When `HCS_U7_MOCK=1` OR `HV_API_KEY` is missing, calls resolve against
 a clearly-labeled local mock. The code path is identical — only the transport
 target changes. Set the env vars and unset `HCS_U7_MOCK` to go live.
 
+`submitVerification()` routes through the Worker at `{HCS_BASE}/hv/demoguard/verify`.
+The Worker adds X-HCS-Worker-Auth, WAF, bot detection, and header sanitization.
+Hasanat sends `X-API-Key` (HV_API_KEY) which passes through to the backend.
+
 ### Routes (Hasanat proxy — the only browser surface)
 - `POST /api/hasanat/session` → creates HCS-U7 cognitive session (real: `POST /api/cognitive/liveguard/session`)
-- `POST /api/hasanat/verify` → submits hold-to-verify (real: `POST /demoguard/verify` on HV API; forces tenant+source server-side; sanitizes response; returns `verifiedAt`)
+- `POST /api/hasanat/verify` → submits hold-to-verify (real: `POST /hv/demoguard/verify` via the Worker; forces tenant+source server-side; sanitizes response; returns `verifiedAt`)
 - `GET  /api/hasanat/session/:sid` → reads session status (no upstream poll; returns `verifiedAt` from the in-memory session)
 - `POST /api/hasanat/signout` → revokes locally (no public HCS-U7 sign-out endpoint exists)
 
