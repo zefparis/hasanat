@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import Header from '../components/Header'
 import Shield from '../components/Shield'
+import HoldToVerify from '../components/HoldToVerify'
 import { useWallet } from '../lib/wallet'
 import { useToast } from '../lib/toast'
+import { useAuth } from '../lib/auth'
 import { ApiError } from '../lib/api'
 import type { LedgerEntry } from '../lib/api'
 
@@ -63,10 +65,12 @@ function toPDF(entries: LedgerEntry[]): string {
 export default function Wallet() {
   const { state: wallet, entries, buy, send, receive } = useWallet()
   const { toast } = useToast()
+  const { isStale, signIn } = useAuth()
   const [tab, setTab] = useState<Tab>('main')
   const [buyAmt, setBuyAmt] = useState('')
   const [selectedContact, setSelectedContact] = useState<string | null>(null)
   const [sendAmt, setSendAmt] = useState('')
+  const [gating, setGating] = useState(false)
 
   function doBuy() {
     const sar = Number(buyAmt)
@@ -74,12 +78,23 @@ export default function Wallet() {
     buy(sar).then(() => { toast(`Bought ${sar} HAS`); setBuyAmt(''); setTab('main') }).catch((e) => toast(e instanceof ApiError ? e.message : 'Buy failed'))
   }
 
-  function doSend() {
+  async function doSend() {
     const amt = Number(sendAmt)
     if (!selectedContact) { toast('Choose a contact'); return }
     if (!amt || amt <= 0) { toast('Enter a valid amount'); return }
     if (wallet && amt > wallet.balance) { toast('Insufficient balance'); return }
     send(selectedContact, amt).then(() => { toast(`Sent ${amt} HAS to ${selectedContact}`); setSendAmt(''); setSelectedContact(null); setTab('main') }).catch((e) => toast(e instanceof ApiError ? e.message : 'Send failed'))
+  }
+
+  function confirmSend() {
+    if (isStale()) { setGating(true); return }
+    void doSend()
+  }
+
+  function onReverified(res: Parameters<typeof signIn>[0]) {
+    signIn(res)
+    setGating(false)
+    void doSend()
   }
 
   function doReceive() {
@@ -178,7 +193,7 @@ export default function Wallet() {
               <span className="muted">Review</span>
               <b>{selectedContact ? `${sendAmt || '0'} HAS -> ${selectedContact}` : 'Select a contact'}</b>
             </div>
-            <button className="btn" style={{ marginTop: 12 }} onClick={doSend} disabled={!selectedContact || !sendAmt || (wallet ? Number(sendAmt) > wallet.balance : true)}>Confirm send</button>
+            <button className="btn" style={{ marginTop: 12 }} onClick={confirmSend} disabled={!selectedContact || !sendAmt || (wallet ? Number(sendAmt) > wallet.balance : true)}>Confirm send</button>
             {wallet && sendAmt && Number(sendAmt) > wallet.balance && <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>Insufficient balance - review disabled.</p>}
             <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => setTab('main')}>Back</button>
           </div>
@@ -215,6 +230,20 @@ export default function Wallet() {
             <button className="btn" style={{ marginTop: 12 }} disabled>Request redemption</button>
             <p className="disc">No real banking integration at this stage. The button is disabled in the pilot.</p>
             <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => setTab('main')}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {gating && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: 'var(--bg)', color: 'var(--ink)', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(env(safe-area-inset-bottom) + 28px)', width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '90dvh', overflowY: 'auto' }}>
+            <HoldToVerify
+              onSuccess={onReverified}
+              onCancel={() => setGating(false)}
+              title="Re-verify to send"
+              subtitle="Your last verification has expired. Hold to re-verify before sending HAS."
+              cancelLabel="Cancel send"
+            />
           </div>
         </div>
       )}

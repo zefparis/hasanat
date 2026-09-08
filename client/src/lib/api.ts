@@ -59,13 +59,8 @@ export interface HcsVerifyResult {
   expiresInSeconds: number
   traceId: string
 }
-export interface HcsVerifyRes { sid: string; result: HcsVerifyResult }
+export interface HcsVerifyRes { sid: string; result: HcsVerifyResult; verifiedAt: number }
 
-export interface HcsRotation {
-  secondsUntilRotation: number
-  rotationPeriodSeconds: number
-  lastVerificationStatus: 'ok' | 'warning' | 'unknown'
-}
 export interface HcsSessionStatusRes {
   sid: string
   sessionPublicId: string
@@ -73,8 +68,6 @@ export interface HcsSessionStatusRes {
   score: number
   riskLevel: 'low' | 'medium' | 'high'
   verifiedAt: number
-  verificationCount: number
-  rotation: HcsRotation
 }
 
 export const hcsApi = {

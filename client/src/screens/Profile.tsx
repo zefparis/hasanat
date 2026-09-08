@@ -80,17 +80,15 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* HCS-U7 session — real data from the 30s poll */}
+      {/* HCS-U7 session — real data from the last verification */}
       <div className="sec">
         <h3>HCS-U7 session</h3>
         <div className="card">
           <div className="kv"><span>Identity assurance</span><b>{v ? (v.riskLevel === 'low' ? 'High' : v.riskLevel === 'medium' ? 'Medium' : 'Low') : '—'}</b></div>
-          <div className="kv"><span>Last re-verification</span><b>{v ? 'just now' : '—'}</b></div>
+          <div className="kv"><span>Last verification</span><b>{v?.verifiedAt ? new Date(v.verifiedAt).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}</b></div>
           <div className="kv"><span>Device bound</span><b style={{ color: 'var(--ok)' }}>Yes</b></div>
-          <div className="kv"><span>Verifications this session</span><b>{v?.verificationCount ?? '—'}</b></div>
-          <div className="kv"><span>Rotation</span><b>{v ? `${v.rotation.rotationPeriodSeconds}s · ${v.rotation.secondsUntilRotation}s left` : '—'}</b></div>
           <div className="kv"><span>Session status</span><b style={{ color: v?.isHuman ? 'var(--ok)' : 'var(--danger)' }}>{v?.isHuman ? 'Verified human' : 'Not verified'}</b></div>
-          <p className="disc">HCS-U7 continuously verifies that the person using the session is the enrolled account holder. If the signature no longer matches, financial functions lock instantly.</p>
+          <p className="disc">HCS-U7 authenticates the person using the session. If the signature no longer matches, financial functions require re-verification before continuing.</p>
         </div>
       </div>
 

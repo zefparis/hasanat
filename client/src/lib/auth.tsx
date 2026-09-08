@@ -1,14 +1,21 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { hcsApi, type HcsSessionStatusRes } from './api'
+import { hcsApi, type HcsSessionStatusRes, type HcsVerifyRes } from './api'
 
 const SID_KEY = 'hasanat.sid'
+
+/** A verification older than this is considered stale; sensitive actions re-trigger hold-to-verify. */
+export const REVERIFY_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
 
 interface AuthCtx {
   sid: string | null
   status: HcsSessionStatusRes | null
   loading: boolean
-  /** Set after a successful hold-to-verify; persists the session id. */
-  signIn: (sid: string) => void
+  /** Timestamp (ms) of the last successful hold-to-verify. Null if not verified. */
+  verifiedAt: number | null
+  /** True if the last verification is older than REVERIFY_THRESHOLD_MS (or never verified). */
+  isStale: () => boolean
+  /** Set after a successful hold-to-verify; persists the session id + status. */
+  signIn: (res: HcsVerifyRes) => void
   signOut: () => Promise<void>
 }
 
@@ -18,25 +25,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sid, setSid] = useState<string | null>(() => localStorage.getItem(SID_KEY))
   const [status, setStatus] = useState<HcsSessionStatusRes | null>(null)
   const [loading, setLoading] = useState(true)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const statusRef = useRef<HcsSessionStatusRes | null>(null)
+  statusRef.current = status
 
-  // Poll the session badge every 30s — real HCS-U7 QSIG rotation, not a JS counter.
+  // Fetch session status ONCE on mount (page reload restores verifiedAt from the server).
+  // No 30s polling — the badge computes age locally from verifiedAt.
   useEffect(() => {
     if (!sid) {
       setLoading(false)
       setStatus(null)
       return
     }
+    // If signIn already set the status (same page navigation), skip the fetch.
+    if (statusRef.current) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
-
-    const poll = async () => {
-      try {
-        const s = await hcsApi.sessionStatus(sid)
-        if (!cancelled) {
-          setStatus(s)
-          setLoading(false)
-        }
-      } catch {
+    hcsApi.sessionStatus(sid)
+      .then((s) => { if (!cancelled) { setStatus(s); setLoading(false) } })
+      .catch(() => {
         // Session expired or revoked — sign out locally.
         if (!cancelled) {
           localStorage.removeItem(SID_KEY)
@@ -44,20 +52,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStatus(null)
           setLoading(false)
         }
-      }
-    }
-
-    void poll()
-    pollRef.current = setInterval(poll, 30_000)
-    return () => {
-      cancelled = true
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+      })
+    return () => { cancelled = true }
   }, [sid])
 
-  const signIn = (newSid: string) => {
-    localStorage.setItem(SID_KEY, newSid)
-    setSid(newSid)
+  const signIn = (res: HcsVerifyRes) => {
+    localStorage.setItem(SID_KEY, res.sid)
+    setSid(res.sid)
+    setStatus({
+      sid: res.sid,
+      sessionPublicId: res.result.sessionPublicId,
+      isHuman: res.result.isHuman,
+      score: res.result.score,
+      riskLevel: res.result.riskLevel,
+      verifiedAt: res.verifiedAt,
+    })
   }
 
   const signOut = async () => {
@@ -73,7 +82,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus(null)
   }
 
-  return <Ctx.Provider value={{ sid, status, loading, signIn, signOut }}>{children}</Ctx.Provider>
+  const verifiedAt = status?.verifiedAt ?? null
+  const isStale = () => {
+    if (!verifiedAt) return true
+    return Date.now() - verifiedAt > REVERIFY_THRESHOLD_MS
+  }
+
+  return <Ctx.Provider value={{ sid, status, loading, verifiedAt, isStale, signIn, signOut }}>{children}</Ctx.Provider>
 }
 
 export function useAuth() {

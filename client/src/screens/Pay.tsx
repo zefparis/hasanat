@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Header from '../components/Header'
 import Shield from '../components/Shield'
+import HoldToVerify from '../components/HoldToVerify'
 import { useWallet } from '../lib/wallet'
 import { useToast } from '../lib/toast'
 import { useAuth } from '../lib/auth'
@@ -16,12 +17,13 @@ type Settlement = 'retain' | 'convert' | 'split'
 export default function Pay() {
   const { pay, state: wallet } = useWallet()
   const { toast } = useToast()
-  const { status } = useAuth()
+  const { status, isStale, signIn } = useAuth()
   const [stage, setStage] = useState<Stage>('scan')
   const [cameraOk, setCameraOk] = useState<boolean | null>(null)
   const [settlement, setSettlement] = useState<Settlement>('retain')
   const [receipt, setReceipt] = useState<{ no?: string; merchantReceives: number } | null>(null)
   const [paying, setPaying] = useState(false)
+  const [gating, setGating] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const scanLineRef = useRef<number | null>(null)
@@ -79,7 +81,7 @@ export default function Pay() {
     return Math.round(BILL * 0.8 * 100) / 100 // split 20-80: merchant gets 80%
   }
 
-  async function confirmPay() {
+  async function doPay() {
     if (!wallet || wallet.balance < BILL + FEE) { toast('Insufficient balance'); return }
     setPaying(true)
     try {
@@ -92,6 +94,18 @@ export default function Pay() {
     } finally {
       setPaying(false)
     }
+  }
+
+  async function confirmPay() {
+    // Re-verify hold-to-verify if the last verification is stale.
+    if (isStale()) { setGating(true); return }
+    void doPay()
+  }
+
+  function onReverified(res: Parameters<typeof signIn>[0]) {
+    signIn(res)
+    setGating(false)
+    void doPay()
   }
 
   const balanceAfter = wallet ? wallet.balance - BILL - FEE : 0
@@ -186,6 +200,20 @@ export default function Pay() {
               : 'Receipt recorded on the ledger.'}
           </p>
           <button className="btn" style={{ marginTop: 12 }} onClick={() => setStage('scan')}>Done</button>
+        </div>
+      )}
+
+      {gating && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: 'var(--bg)', color: 'var(--ink)', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(env(safe-area-inset-bottom) + 28px)', width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '90dvh', overflowY: 'auto' }}>
+            <HoldToVerify
+              onSuccess={onReverified}
+              onCancel={() => setGating(false)}
+              title="Re-verify to pay"
+              subtitle="Your last verification has expired. Hold to re-verify before authorising this payment."
+              cancelLabel="Cancel payment"
+            />
+          </div>
         </div>
       )}
     </div>

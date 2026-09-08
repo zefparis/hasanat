@@ -57,9 +57,30 @@ target changes. Set the env vars and unset `HCS_U7_MOCK` to go live.
 
 ### Routes (Hasanat proxy — the only browser surface)
 - `POST /api/hasanat/session` → creates HCS-U7 cognitive session (real: `POST /api/cognitive/liveguard/session`)
-- `POST /api/hasanat/verify` → submits hold-to-verify (real: `POST /demoguard/verify` on HV API; forces tenant+source server-side; sanitizes response)
-- `GET  /api/hasanat/session/:sid` → polls 30s QSIG rotation (real: `GET /api/tenant/rotation-status`)
+- `POST /api/hasanat/verify` → submits hold-to-verify (real: `POST /demoguard/verify` on HV API; forces tenant+source server-side; sanitizes response; returns `verifiedAt`)
+- `GET  /api/hasanat/session/:sid` → reads session status (no upstream poll; returns `verifiedAt` from the in-memory session)
 - `POST /api/hasanat/signout` → revokes locally (no public HCS-U7 sign-out endpoint exists)
+
+### Session badge — age-based, not polled
+The badge (`Shield.tsx`) shows the age of the last real hold-to-verify
+(`"verified Xs ago"`), computed client-side from `verifiedAt`. There is **no
+30s server poll** — the previous `rotationStatus()` call to
+`/api/tenant/rotation-status` was a dashboard endpoint (JWT cookie) that
+never worked server-to-server and has been removed entirely.
+
+### Re-verify before sensitive actions
+Sensitive actions (Pay, Send, Pay Zakat) check `isStale()` before proceeding.
+If the last verification is older than `REVERIFY_THRESHOLD_MS` (5 minutes),
+a `HoldToVerify` modal re-triggers the real hold-to-verify flow. If the last
+verification is fresh, the action proceeds without friction. The prayer
+check-in is **exempt** — it reuses the existing session state without a
+re-hold (low-stakes action, no over-friction).
+
+### Reusable hold-to-verify
+`client/src/components/HoldToVerify.tsx` is the single reusable component for
+the real HCS-U7 cognitive verification. It creates a session, captures the
+hold gesture, fires the verify call, and lights up the 4 checks from the
+backend response. Used by SignIn (step 3) and the re-verify gate modal.
 
 ### The 4 UI checks
 `device bound`, `liveness`, `cognitive signature matched`, `secure session` are UI

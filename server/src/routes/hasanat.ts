@@ -5,22 +5,20 @@
  */
 import { Router } from 'express'
 import {
-  createSession, submitVerification, rotationStatus, isMockMode,
+  createSession, submitVerification, isMockMode,
   type HcsVerificationResult,
 } from '../services/hcs-u7'
 
 const router = Router()
 
 // In-memory session store for the pilot. Real HCS-U7 issues a quick-auth JWT;
-// in mock mode we keep a server-side session id so the badge can poll.
+// in mock mode we keep a server-side session id so the badge can read status.
 interface HasanatSession {
   sessionPublicId: string
-  hcsToken: string | null
   isHuman: boolean
   score: number
   riskLevel: 'low' | 'medium' | 'high'
   verifiedAt: number
-  verificationCount: number
 }
 const sessions = new Map<string, HasanatSession>()
 
@@ -64,48 +62,38 @@ router.post('/verify', async (req, res) => {
       res.status(403).json({ error: 'verification_failed', result })
       return
     }
-    // Persist a Hasanat session the badge can poll.
+    // Persist a Hasanat session the badge can read.
     const sid = newId()
+    const verifiedAt = Date.now()
     sessions.set(sid, {
       sessionPublicId: result.sessionPublicId,
-      hcsToken: result.hcsToken,
       isHuman: result.isHuman,
       score: result.score,
       riskLevel: result.riskLevel,
-      verifiedAt: Date.now(),
-      verificationCount: 1,
+      verifiedAt,
     })
-    res.json({ sid, result })
+    res.json({ sid, result, verifiedAt })
   } catch (e) {
     res.status(502).json({ error: 'verify_failed', message: (e as Error).message })
   }
 })
 
-// GET /api/hasanat/session/:sid — poll the active session + 30s rotation status.
-router.get('/session/:sid', async (req, res) => {
+// GET /api/hasanat/session/:sid — read the active session status (no upstream poll).
+router.get('/session/:sid', (req, res) => {
   const sid = req.params.sid
   const sess = sessions.get(sid)
   if (!sess) {
     res.status(404).json({ error: 'session_not_found' })
     return
   }
-  try {
-    const rotation = await rotationStatus(sess.hcsToken)
-    // Increment the verification count each poll to mirror "re-verifies every 30s".
-    sess.verificationCount += 1
-    res.json({
-      sid,
-      sessionPublicId: sess.sessionPublicId,
-      isHuman: sess.isHuman,
-      score: sess.score,
-      riskLevel: sess.riskLevel,
-      verifiedAt: sess.verifiedAt,
-      verificationCount: sess.verificationCount,
-      rotation,
-    })
-  } catch (e) {
-    res.status(502).json({ error: 'rotation_failed', message: (e as Error).message })
-  }
+  res.json({
+    sid,
+    sessionPublicId: sess.sessionPublicId,
+    isHuman: sess.isHuman,
+    score: sess.score,
+    riskLevel: sess.riskLevel,
+    verifiedAt: sess.verifiedAt,
+  })
 })
 
 // POST /api/hasanat/signout — revoke the Hasanat session locally.

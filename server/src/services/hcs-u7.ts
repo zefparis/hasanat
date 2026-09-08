@@ -86,12 +86,6 @@ export interface HcsVerificationResult {
   traceId: string
 }
 
-export interface HcsRotationStatus {
-  secondsUntilRotation: number // 0-29
-  rotationPeriodSeconds: number // 30
-  lastVerificationStatus: 'ok' | 'warning' | 'unknown'
-}
-
 async function fetchUpstream(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
@@ -160,27 +154,6 @@ export async function submitVerification(payload: VerifyPayload): Promise<HcsVer
   if (!res.ok) throw new Error(`HCS-U7 verify failed: ${res.status}`)
   const raw = await res.json() as Record<string, unknown>
   return sanitizeVerification(raw, payload.sessionPublicId)
-}
-
-/** Poll the 30s QSIG rotation status. Real call: GET /api/tenant/rotation-status. */
-export async function rotationStatus(hcsToken: string | null): Promise<HcsRotationStatus> {
-  if (MOCK) {
-    return {
-      secondsUntilRotation: 30 - (Math.floor(Date.now() / 1000) % 30),
-      rotationPeriodSeconds: 30,
-      lastVerificationStatus: 'ok',
-    }
-  }
-  const res = await fetchUpstream(`${HCS_BASE}/api/tenant/rotation-status`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': HV_API_KEY,
-      ...(hcsToken ? { hcsToken } : {}),
-    },
-  })
-  if (!res.ok) throw new Error(`HCS-U7 rotation-status failed: ${res.status}`)
-  return res.json() as Promise<HcsRotationStatus>
 }
 
 // ─── Response sanitization ──────────────────────────────────────────────────

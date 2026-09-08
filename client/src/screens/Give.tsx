@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import Header from '../components/Header'
 import Shield from '../components/Shield'
+import HoldToVerify from '../components/HoldToVerify'
 import { useWallet } from '../lib/wallet'
 import { useToast } from '../lib/toast'
+import { useAuth } from '../lib/auth'
 import { giveApi, type ZakatInput, type Campaign } from '../lib/api'
 import { ApiError } from '../lib/api'
 
@@ -24,9 +26,11 @@ const QUICK_AMOUNTS = [10, 25, 50, 100]
 export default function Give() {
   const { state: wallet, send } = useWallet()
   const { toast } = useToast()
+  const { isStale, signIn } = useAuth()
   const [tab, setTab] = useState<Tab>('main')
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [campaignsLoaded, setCampaignsLoaded] = useState(false)
+  const [gating, setGating] = useState(false)
 
   // Zakat form
   const [zakatInput, setZakatInput] = useState<ZakatInput>({ cash: 0, gold: 0, silver: 0, businessAssets: 0, debts: 0 })
@@ -51,7 +55,7 @@ export default function Give() {
     } catch { toast('Calculation failed') }
   }
 
-  async function payZakat() {
+  async function doPayZakat() {
     if (!zakatResult || zakatResult.zakatDue <= 0) { toast('Calculate your Zakat first'); return }
     if (wallet && zakatResult.zakatDue > wallet.balance) { toast('Insufficient balance'); return }
     try {
@@ -64,6 +68,17 @@ export default function Give() {
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Zakat payment failed')
     }
+  }
+
+  async function payZakat() {
+    if (isStale()) { setGating(true); return }
+    void doPayZakat()
+  }
+
+  function onReverified(res: Parameters<typeof signIn>[0]) {
+    signIn(res)
+    setGating(false)
+    void doPayZakat()
   }
 
   async function giveSadaqah(amount: number, campaignId?: string) {
@@ -247,6 +262,20 @@ export default function Give() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {gating && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: 'var(--bg)', color: 'var(--ink)', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(env(safe-area-inset-bottom) + 28px)', width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '90dvh', overflowY: 'auto' }}>
+            <HoldToVerify
+              onSuccess={onReverified}
+              onCancel={() => setGating(false)}
+              title="Re-verify to pay Zakat"
+              subtitle="Your last verification has expired. Hold to re-verify before paying Zakat."
+              cancelLabel="Cancel"
+            />
+          </div>
         </div>
       )}
     </div>
