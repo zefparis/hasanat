@@ -144,7 +144,7 @@ export async function submitVerification(payload: VerifyPayload): Promise<HcsVer
   }
   const body = {
     hcs_session_public_id: payload.sessionPublicId,
-    source: 'hasanat_mobile',
+    source: 'liveguard_mobile',
     tenant_id: TENANT_ID,
     demo_guard: {
       version: '1.0.0',
@@ -152,6 +152,12 @@ export async function submitVerification(payload: VerifyPayload): Promise<HcsVer
       completed_at: new Date().toISOString(),
       device: { type: 'mobile', fingerprint: payload.deviceFingerprint ?? {} },
       signals: payload.signals ?? {},
+      quality: {
+        signal_completeness: 0,
+        overall_ready: false,
+        critical_missing: [],
+        missing_optional: ['selfie', 'reaction', 'voice', 'motion', 'orientation', 'touch', 'visibility', 'network'],
+      },
     },
   }
   const res = await fetchUpstream(`${HCS_BASE}/hv/demoguard/verify`, {
