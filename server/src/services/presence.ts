@@ -12,11 +12,11 @@
  * at the next prayer time. The window is computed from the REAL solar
  * calculation in prayer.ts — the client never sends a timestamp.
  *
- * ─── Anti-doublon (applicative, in-memory for the pilot) ───
- * One check-in per window per session, enforced by a Map keyed by
- * (sid, prayerName, date). A second tap in the same window is rejected
- * with a clear error. In production this would be a DB unique constraint
- * on (sid, prayer_window_id) — the logic is identical.
+ * ─── Anti-doublon (SQLite UNIQUE constraint) ───
+ * One check-in per window per session, enforced by a SQL UNIQUE constraint
+ * on (sid, prayer_name, date). A second tap in the same window is rejected
+ * by the database itself — no race condition possible, no applicative check
+ * that could be bypassed. This replaces the old in-memory Map.
  *
  * ─── No retroactive check-in ───
  * If the current time is past the window (i.e. past the next prayer time),
@@ -25,6 +25,7 @@
  */
 
 import { getSchedule, type PrayerTime } from './prayer'
+import db from './db'
 
 export interface CheckInWindow {
   /** which prayer this window belongs to */
@@ -53,9 +54,8 @@ export interface CheckInResult {
   reason?: 'window_closed' | 'window_not_open' | 'already_checked_in' | 'session_invalid'
 }
 
-// In-memory store: key = `${sid}:${prayerName}:${dateISO}` → recordedAt
-// In production: DB table with UNIQUE(sid, prayer_window_id)
-const checkIns = new Map<string, number>()
+// ─── Storage: SQLite (was in-memory Map, now persisted) ───
+// Anti-doublon is enforced by UNIQUE(sid, prayer_name, date) at the DB level.
 
 const CHECK_IN_POINTS = 10
 const WINDOW_BEFORE_MINUTES = 15
@@ -173,24 +173,32 @@ export function checkIn(sid: string, sessionValid: boolean): CheckInResult {
   }
 
   const now = new Date()
-  const key = `${sid}:${window.prayerName}:${dateKey(now)}`
+  const date = dateKey(now)
 
-  // ─── ANTI-DOUBLON (applicative, in-memory for pilot) ───
-  // In production: INSERT ... ON CONFLICT (sid, prayer_window_id) DO NOTHING
-  if (checkIns.has(key)) {
-    return {
-      ok: false,
-      message: 'Presence already recorded for this prayer window.',
-      recordedAt: checkIns.get(key)!,
-      prayerName: window.prayerName,
-      pointsAwarded: 0,
-      reason: 'already_checked_in',
-    }
-  }
-
-  // ─── SERVER-SIDE TIMESTAMP (never client-supplied) ───
+  // ─── ANTI-DOUBLON (SQLite UNIQUE constraint) ───
+  // The UNIQUE(sid, prayer_name, date) constraint rejects the insert if a
+  // check-in already exists for this session + prayer + date. This is a
+  // database-level guarantee — no race condition, no applicative bypass.
   const recordedAt = Date.now()
-  checkIns.set(key, recordedAt)
+  try {
+    db.prepare('INSERT INTO presence_checkins (sid, prayer_name, date, recorded_at) VALUES (?, ?, ?, ?)')
+      .run(sid, window.prayerName, date, recordedAt)
+  } catch (e) {
+    // UNIQUE constraint violation → already checked in
+    if ((e as Error).message.includes('UNIQUE')) {
+      const existing = db.prepare('SELECT recorded_at FROM presence_checkins WHERE sid = ? AND prayer_name = ? AND date = ?')
+        .get(sid, window.prayerName, date) as { recorded_at: number } | undefined
+      return {
+        ok: false,
+        message: 'Presence already recorded for this prayer window.',
+        recordedAt: existing?.recorded_at ?? 0,
+        prayerName: window.prayerName,
+        pointsAwarded: 0,
+        reason: 'already_checked_in',
+      }
+    }
+    throw e // unexpected error — re-throw
+  }
 
   return {
     ok: true,
@@ -206,24 +214,15 @@ export function checkIn(sid: string, sessionValid: boolean): CheckInResult {
  * Returns factual data only — no piety score, no judgment.
  */
 export function getCheckInHistory(sid: string): Array<{ prayerName: string; date: string; recordedAt: number }> {
-  const history: Array<{ prayerName: string; date: string; recordedAt: number }> = []
-  const prefix = `${sid}:`
-  for (const [key, recordedAt] of checkIns.entries()) {
-    if (!key.startsWith(prefix)) continue
-    const parts = key.split(':')
-    const prayerName = parts[1]
-    const date = parts[2]
-    history.push({ prayerName, date, recordedAt })
-  }
-  // Sort most recent first, limit to 7 days
-  history.sort((a, b) => b.recordedAt - a.recordedAt)
-  return history.slice(0, 50)
+  const rows = db.prepare('SELECT prayer_name, date, recorded_at FROM presence_checkins WHERE sid = ? ORDER BY recorded_at DESC LIMIT 50').all(sid) as Array<{ prayer_name: string; date: string; recorded_at: number }>
+  return rows.map((r) => ({ prayerName: r.prayer_name, date: r.date, recordedAt: r.recorded_at }))
 }
 
 /**
  * Check if a specific prayer has been checked in today for this session.
  */
 export function hasCheckedInToday(sid: string, prayerName: string): boolean {
-  const key = `${sid}:${prayerName}:${dateKey(new Date())}`
-  return checkIns.has(key)
+  const date = dateKey(new Date())
+  const row = db.prepare('SELECT 1 FROM presence_checkins WHERE sid = ? AND prayer_name = ? AND date = ?').get(sid, prayerName, date)
+  return !!row
 }

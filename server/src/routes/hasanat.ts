@@ -2,17 +2,18 @@
  * Hasanat proxy routes — the ONLY surface the browser client calls for HCS-U7.
  * The browser never sees an API key and never sends raw biometrics upstream.
  * All real HCS-U7 calls happen server-side via services/hcs-u7.ts.
+ *
+ * Storage: SQLite (see db.ts). Sessions persist across process restarts.
  */
 import { Router } from 'express'
 import {
   createSession, submitVerification, isMockMode,
   type HcsVerificationResult,
 } from '../services/hcs-u7'
+import db from '../services/db'
 
 const router = Router()
 
-// In-memory session store for the pilot. Real HCS-U7 issues a quick-auth JWT;
-// in mock mode we keep a server-side session id so the badge can read status.
 interface HasanatSession {
   sessionPublicId: string
   isHuman: boolean
@@ -20,7 +21,25 @@ interface HasanatSession {
   riskLevel: 'low' | 'medium' | 'high'
   verifiedAt: number
 }
-const sessions = new Map<string, HasanatSession>()
+
+interface SessionRow {
+  sid: string
+  session_public_id: string
+  is_human: number
+  score: number
+  risk_level: string
+  verified_at: number
+}
+
+function rowToSession(r: SessionRow): HasanatSession {
+  return {
+    sessionPublicId: r.session_public_id,
+    isHuman: !!r.is_human,
+    score: r.score,
+    riskLevel: r.risk_level as HasanatSession['riskLevel'],
+    verifiedAt: r.verified_at,
+  }
+}
 
 function newId(): string {
   return `hs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -65,13 +84,8 @@ router.post('/verify', async (req, res) => {
     // Persist a Hasanat session the badge can read.
     const sid = newId()
     const verifiedAt = Date.now()
-    sessions.set(sid, {
-      sessionPublicId: result.sessionPublicId,
-      isHuman: result.isHuman,
-      score: result.score,
-      riskLevel: result.riskLevel,
-      verifiedAt,
-    })
+    db.prepare('INSERT INTO hasanat_sessions (sid, session_public_id, is_human, score, risk_level, verified_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(sid, result.sessionPublicId, result.isHuman ? 1 : 0, result.score, result.riskLevel, verifiedAt)
     res.json({ sid, result, verifiedAt })
   } catch (e) {
     res.status(502).json({ error: 'verify_failed', message: (e as Error).message })
@@ -81,11 +95,12 @@ router.post('/verify', async (req, res) => {
 // GET /api/hasanat/session/:sid — read the active session status (no upstream poll).
 router.get('/session/:sid', (req, res) => {
   const sid = req.params.sid
-  const sess = sessions.get(sid)
-  if (!sess) {
+  const row = db.prepare('SELECT * FROM hasanat_sessions WHERE sid = ?').get(sid) as SessionRow | undefined
+  if (!row) {
     res.status(404).json({ error: 'session_not_found' })
     return
   }
+  const sess = rowToSession(row)
   res.json({
     sid,
     sessionPublicId: sess.sessionPublicId,
@@ -100,8 +115,8 @@ router.get('/session/:sid', (req, res) => {
 // No public HCS-U7 sign-out endpoint exists; we clear the server-side session.
 router.post('/signout', (req, res) => {
   const sid = req.body?.sid
-  if (sid && sessions.has(sid)) {
-    sessions.delete(sid)
+  if (sid) {
+    db.prepare('DELETE FROM hasanat_sessions WHERE sid = ?').run(sid)
   }
   res.json({ ok: true })
 })

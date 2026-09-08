@@ -2,9 +2,12 @@
  * Give service — Zakat calculator, Sadaqah, campaigns.
  * Pilot mock: no real charitable disbursement. Ledger entries use the
  * 'charitable' label, consistent with wallet.ts.
+ *
+ * Storage: SQLite (see db.ts). Campaign progress persists across restarts.
  */
 
 import { send as walletSend } from './wallet'
+import db from './db'
 
 export interface ZakatInput {
   cash: number
@@ -54,22 +57,32 @@ export interface Campaign {
   sponsorPool: number
 }
 
-const campaigns: Campaign[] = [
-  { id: 'iftar', title: 'Orphan Iftar Fund', subtitle: 'Meals for 500 orphans this Ramadan', raised: 8400, goal: 12000, verified: true, sponsorPool: 2000 },
-  { id: 'water', title: 'Water Wells — Sahel', subtitle: 'Clean water for 3 villages', raised: 15600, goal: 25000, verified: true, sponsorPool: 5000 },
-  { id: 'school', title: 'Madrasa Books', subtitle: 'Learning materials for 200 students', raised: 3200, goal: 8000, verified: true, sponsorPool: 1000 },
-]
+interface CampaignRow {
+  id: string
+  title: string
+  subtitle: string
+  raised: number
+  goal: number
+  verified: number
+  sponsor_pool: number
+}
+
+function rowToCampaign(r: CampaignRow): Campaign {
+  return { id: r.id, title: r.title, subtitle: r.subtitle, raised: r.raised, goal: r.goal, verified: !!r.verified, sponsorPool: r.sponsor_pool }
+}
 
 export function getCampaigns(): Campaign[] {
-  // Return a copy so the caller can't mutate the mock store
-  return campaigns.map((c) => ({ ...c }))
+  const rows = db.prepare('SELECT * FROM campaigns').all() as CampaignRow[]
+  return rows.map(rowToCampaign)
 }
 
 export function contributeToCampaign(campaignId: string, amount: number): Campaign | null {
-  const c = campaigns.find((x) => x.id === campaignId)
-  if (!c) return null
-  c.raised = Math.min(c.goal, c.raised + amount)
-  return { ...c }
+  const row = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(campaignId) as CampaignRow | undefined
+  if (!row) return null
+  const newRaised = Math.min(row.goal, row.raised + amount)
+  db.prepare('UPDATE campaigns SET raised = ? WHERE id = ?').run(newRaised, campaignId)
+  const updated = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(campaignId) as CampaignRow
+  return rowToCampaign(updated)
 }
 
 /**
