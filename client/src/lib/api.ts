@@ -149,3 +149,51 @@ export const giveApi = {
   sadaqah: (amount: number, campaignId?: string) => api<{ entry: LedgerEntry; balance: number }>('/give/sadaqah', { method: 'POST', body: JSON.stringify({ amount, campaignId }) }),
   campaigns: () => api<{ campaigns: Campaign[] }>('/give/campaigns'),
 }
+
+// ─── Presence (check-in level 1) ──────────────────────────────────────────────
+// GOLDEN RULE: "presence recorded" / "présence enregistrée" — NEVER "prayer verified"
+export interface CheckInWindow {
+  prayerName: string
+  opensAt: number
+  closesAt: number
+  isOpen: boolean
+  isPast: boolean
+  secondsUntilOpen: number
+  schedule: Array<{ name: string; time: string; asrHanafi?: string }>
+}
+export interface CheckInResult {
+  ok: boolean
+  message: string
+  recordedAt: number
+  prayerName: string
+  pointsAwarded: number
+  reason?: 'window_closed' | 'window_not_open' | 'already_checked_in' | 'session_invalid'
+}
+export interface CheckInHistoryEntry { prayerName: string; date: string; recordedAt: number }
+export const presenceApi = {
+  window: () => api<CheckInWindow>('/presence/window'),
+  history: () => api<{ history: CheckInHistoryEntry[] }>('/presence/history'),
+  today: () => api<{ checkedInToday: Array<{ name: string; checkedIn: boolean }> }>('/presence/today'),
+  checkIn: () => api<CheckInResult>('/presence/checkin', { method: 'POST' }),
+}
+
+// ─── Explore (mosques, businesses, learn) ─────────────────────────────────────
+export interface Mosque {
+  id: string; name: string; area: string; distanceKm: number; jumuahTime: string
+  institutionWallet: { general: number; sadaqah: number; zakat: number; pendingApprovals: number; signatoryThreshold: string }
+}
+export interface Business {
+  id: string; name: string; category: 'Food' | 'Retail' | 'Travel' | 'Services'; area: string; acceptsHAS: boolean
+  pos: { salesToday: number; transactionsToday: number; settlementPreference: 'retain' | 'convert' | 'split'; nextSettlementSAR: number; kybStatus: 'verified' | 'pending' | 'not_started' }
+}
+export interface Course { id: string; title: string; progress: number; lessons: number; completedLessons: number }
+export interface Badge { id: string; title: string; earned: boolean; icon: string }
+export interface LearnState { quran: { juzRead: number; juzTotal: number; streak: number; pointsThisMonth: number }; courses: Course[]; badges: Badge[] }
+export const exploreApi = {
+  mosques: () => api<{ mosques: Mosque[] }>('/mosques'),
+  mosque: (id: string) => api<Mosque>(`/mosques/${id}`),
+  donateMosque: (id: string, amount: number) => api<{ entry: LedgerEntry; balance: number }>(`/mosques/${id}/donate`, { method: 'POST', body: JSON.stringify({ amount }) }),
+  businesses: () => api<{ businesses: Business[] }>('/businesses'),
+  business: (id: string) => api<Business>(`/businesses/${id}`),
+  learn: () => api<LearnState>('/learn'),
+}

@@ -6,6 +6,8 @@ import prayerRoutes from './routes/prayer'
 import walletRoutes from './routes/wallet'
 import chatRoutes from './routes/chat'
 import giveRoutes from './routes/give'
+import presenceRoutes from './routes/presence'
+import exploreRoutes from './routes/explore'
 
 const app = express()
 app.use(cors())
@@ -30,6 +32,12 @@ app.use('/api/chat', chatRoutes)
 
 // Give — Zakat calculator (indicative), Sadaqah, campaigns.
 app.use('/api/give', giveRoutes)
+
+// Presence check-in — level 1 (prayer presence, NOT prayer verification)
+app.use('/api/presence', presenceRoutes)
+
+// Explore — mosques, businesses, learn
+app.use('/api', exploreRoutes)
 
 const port = Number(process.env.PORT) || 8787
 app.listen(port, () => {

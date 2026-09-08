@@ -1,34 +1,94 @@
-import Overlay from '../components/Overlay'
+import { useState, useEffect } from 'react'
+import Header from '../components/Header'
+import Shield from '../components/Shield'
+import { exploreApi, type LearnState } from '../lib/api'
 
 export default function Learn() {
+  const [state, setState] = useState<LearnState | null>(null)
+
+  useEffect(() => {
+    exploreApi.learn().then(setState).catch(() => {})
+  }, [])
+
+  if (!state) {
+    return <div className="screen"><Header title="Learn" right={<Shield />} /><div className="pad"><p className="muted">Loading...</p></div></div>
+  }
+
+  const quranPct = Math.round((state.quran.juzRead / state.quran.juzTotal) * 100)
+  const circumference = 2 * Math.PI * 54
+
   return (
-    <Overlay title="Learn" subtitle="Qur'an, courses, badges">
-      <div className="card" style={{ textAlign: 'center' }}>
-        <div className="star" style={{ width: 90, height: 90, background: 'var(--accent)', margin: '0 auto 14px' }} />
-        <b style={{ fontFamily: 'var(--serif)', fontSize: 22 }}>Qur'an progress</b>
-        <p className="muted" style={{ marginTop: 4 }}>Read-only tracking · Juz 5 of 30</p>
-        <div className="bar"><i style={{ width: '17%' }} /></div>
+    <div className="screen">
+      <Header title="Learn" right={<Shield />} />
+
+      {/* Quran progress ring */}
+      <div className="pad sec">
+        <h3>Qur'an reading</h3>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 16px' }}>
+          <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
+            <svg viewBox="0 0 130 130" style={{ width: '100%', height: '100%' }}>
+              <circle cx="65" cy="65" r="54" stroke="var(--surface2)" strokeWidth="8" fill="none" />
+              <circle
+                cx="65" cy="65" r="54" stroke="var(--primary-2)" strokeWidth="8" fill="none" strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference - (quranPct / 100) * circumference}
+                transform="rotate(-90 65 65)"
+                style={{ transition: 'stroke-dashoffset .8s' }}
+              />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <b style={{ fontFamily: 'var(--serif)', fontSize: 28 }}>{state.quran.juzRead}<small style={{ fontSize: 14, color: 'var(--muted)' }}>/{state.quran.juzTotal}</small></b>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>Juz</span>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="kv"><span>Streak</span><b>{state.quran.streak} days</b></div>
+            <div className="kv"><span>Points this month</span><b>{state.quran.pointsThisMonth}</b></div>
+            <div className="kv"><span>Progress</span><b>{quranPct}%</b></div>
+          </div>
+        </div>
+        <p className="disc" style={{ marginTop: 8 }}>
+          Hasanat Points are recognition only — they never represent divine reward, a piety ranking, or spiritual worth.
+          They are a private, non-monetary acknowledgment of your effort, nothing more.
+        </p>
       </div>
-      <div className="sec">
+
+      {/* Courses */}
+      <div className="pad sec">
         <h3>Courses</h3>
         <div className="card">
-          <div className="kv"><span>Foundations of Salah</span><b>40%</b></div>
-          <div className="bar"><i style={{ width: '40%' }} /></div>
-          <div className="kv" style={{ marginTop: 12 }}><span>Zakat in practice</span><b>100%</b></div>
-          <div className="bar"><i style={{ width: '100%' }} /></div>
+          {state.courses.map((c) => (
+            <div key={c.id} className="item" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 12, marginBottom: 12 }}>
+              <div className="tx" style={{ flex: 1 }}>
+                <b style={{ fontSize: 14 }}>{c.title}</b>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{c.completedLessons}/{c.lessons} lessons</span>
+              </div>
+              <div style={{ width: 100 }}>
+                <div style={{ height: 6, borderRadius: 3, background: 'var(--surface2)', overflow: 'hidden' }}>
+                  <div style={{ width: `${c.progress * 100}%`, height: '100%', background: c.progress === 1 ? 'var(--ok)' : 'var(--primary-2)', borderRadius: 3 }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                  {c.progress === 1 ? 'Complete' : `${Math.round(c.progress * 100)}%`}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="sec">
-        <h3>Badges</h3>
-        <div className="chips">
-          <span className="pill green">First Sadaqah</span>
-          <span className="pill">7-day streak</span>
-          <span className="pill grey">Hajj guide 🔒</span>
+
+      {/* Badges */}
+      <div className="pad sec">
+        <h3>Badges & certificates</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {state.badges.map((b) => (
+            <div key={b.id} className="card" style={{ textAlign: 'center', padding: '14px 8px', opacity: b.earned ? 1 : 0.4, border: b.earned ? '1px solid var(--accent)' : '1px solid var(--line)' }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>{b.earned ? b.icon : '🔒'}</div>
+              <b style={{ fontSize: 11.5, lineHeight: 1.3, display: 'block' }}>{b.title}</b>
+              <span style={{ fontSize: 10, color: b.earned ? 'var(--ok)' : 'var(--muted)' }}>{b.earned ? 'Earned' : 'Locked'}</span>
+            </div>
+          ))}
         </div>
       </div>
-      <p className="disc">
-        Points are recognition only. They never represent a divine reward or ranking.
-      </p>
-    </Overlay>
+    </div>
   )
 }

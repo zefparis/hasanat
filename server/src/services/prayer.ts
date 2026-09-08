@@ -97,7 +97,7 @@ function calcTimes(dt: Date): PrayerTime[] {
   const a2 = hmParts(dh + A(2))
   return [
     { name: 'Fajr', time: hm(dh - T(FAJR_ISHA_ANGLE)) },
-    { name: 'Sunrise', time: hm(dh + T(0.833)) },
+    { name: 'Sunrise', time: hm(dh - T(0.833)) },
     { name: 'Dhuhr', time: hm(dh) },
     { name: 'Asr', time: hm(dh + A(1)), asrHanafi: hm(dh + A(2)) },
     { name: 'Maghrib', time: hm(dh + T(0.833)) },
