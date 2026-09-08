@@ -11,9 +11,12 @@ import exploreRoutes from './routes/explore'
 import { startBackupScheduler } from './services/backup'
 
 const app = express()
-// Trust the Render proxy so req.ip reflects the real client IP (not the proxy's).
-// Render runs behind a reverse proxy; without this, req.ip would be the proxy IP.
-app.set('trust proxy', true)
+// Trust exactly 1 proxy hop (Render's load balancer). NOT `true`, which would
+// trust the leftmost X-Forwarded-For entry — forgeable by the client to bypass
+// IP-based rate limits. With `1`, Express uses the rightmost entry (the real
+// client IP appended by Render's LB), ignoring client-forged left entries.
+// Ref: https://render.com/articles/how-render-handles-ddos-attacks
+app.set('trust proxy', 1)
 app.use(cors())
 app.use(express.json())
 app.use(morgan('dev'))
