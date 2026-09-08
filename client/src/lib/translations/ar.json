@@ -139,7 +139,8 @@
     "csvUnit": "الوحدة",
     "csvReceipt": "الإيصال",
     "pdfTitle": "حسنات - كشف النشاط",
-    "pdfGenerated": "أُنشئ في {date}"
+    "pdfGenerated": "أُنشئ في {date}",
+    "toastRateLimited": "طلبات شراء كثيرة جداً. يرجى التريث والمحاولة لاحقاً."
   },
   "pay": {
     "title": "دفع",

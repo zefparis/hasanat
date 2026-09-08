@@ -6,6 +6,7 @@ import { Router } from 'express'
 import {
   getWalletState, getLedgerEntries, buy, send, receive, pay, isMockLedger,
 } from '../services/wallet'
+import { checkBuyRateLimit } from '../services/rate-limit'
 
 // Simple sid extraction from header (the auth proxy sets the Hasanat session id).
 function sidFrom(req: { headers: Record<string, string | string[] | undefined> }): string {
@@ -29,6 +30,21 @@ r.post('/buy', (req, res) => {
     const sid = sidFrom(req)
     const { sar } = req.body ?? {}
     if (typeof sar !== 'number' || sar <= 0) { res.status(400).json({ error: 'invalid_amount' }); return }
+
+    // Rate limit: max RATE_LIMIT_BUY_MAX Buy transactions per hour (default 10).
+    // Prevents script abuse of the mock ledger while it has no real backing.
+    const rl = checkBuyRateLimit(sid)
+    if (!rl.allowed) {
+      res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many Buy transactions. Please slow down and try again later.',
+        retryAfterMs: rl.retryAfterMs,
+        limit: rl.limit,
+        windowMs: rl.windowMs,
+      })
+      return
+    }
+
     res.json(buy(sid, sar))
   } catch (e) { res.status(400).json({ error: 'buy_failed', message: (e as Error).message }) }
 })

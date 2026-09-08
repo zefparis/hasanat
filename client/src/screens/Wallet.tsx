@@ -86,7 +86,7 @@ export default function Wallet() {
   function doBuy() {
     const sar = Number(buyAmt)
     if (!sar || sar <= 0) { toast(t('wallet.toastValidAmount')); return }
-    buy(sar).then(() => { toast(t('wallet.toastBought', { amt: sar })); setBuyAmt(''); setTab('main') }).catch((e) => toast(e instanceof ApiError ? e.message : t('wallet.toastBuyFailed')))
+    buy(sar).then(() => { toast(t('wallet.toastBought', { amt: sar })); setBuyAmt(''); setTab('main') }).catch((e) => toast(e instanceof ApiError ? (e.code === 'rate_limited' ? t('wallet.toastRateLimited') : e.message) : t('wallet.toastBuyFailed')))
   }
 
   async function doSend() {

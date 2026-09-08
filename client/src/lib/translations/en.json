@@ -139,7 +139,8 @@
     "csvUnit": "Unit",
     "csvReceipt": "Receipt",
     "pdfTitle": "Hasanat - Activity Statement",
-    "pdfGenerated": "Generated {date}"
+    "pdfGenerated": "Generated {date}",
+    "toastRateLimited": "Too many Buy transactions. Please slow down and try again later."
   },
   "pay": {
     "title": "Pay",

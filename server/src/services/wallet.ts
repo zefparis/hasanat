@@ -74,9 +74,9 @@ function getWallet(sid: string): Wallet {
     // Seed the ledger with the same initial entries as the old in-memory version
     const now = Date.now()
     const seedEntries = [
-      { id: 'seed1', ts: now - 86_400_000, label: 'reserve', description: 'Initial backing received', amount: SEED_BALANCE, unit: 'HAS', receiptNo: 'MOCK-001' },
-      { id: 'seed2', ts: now - 43_200_000, label: 'reward', description: 'Fajr presence recorded', amount: 10, unit: 'pts', receiptNo: undefined },
-      { id: 'seed3', ts: now - 21_600_000, label: 'charitable', description: 'Sadaqah — water wells', amount: -25, unit: 'HAS', receiptNo: undefined },
+      { id: `seed1_${sid}`, ts: now - 86_400_000, label: 'reserve', description: 'Initial backing received', amount: SEED_BALANCE, unit: 'HAS', receiptNo: 'MOCK-001' },
+      { id: `seed2_${sid}`, ts: now - 43_200_000, label: 'reward', description: 'Fajr presence recorded', amount: 10, unit: 'pts', receiptNo: undefined },
+      { id: `seed3_${sid}`, ts: now - 21_600_000, label: 'charitable', description: 'Sadaqah — water wells', amount: -25, unit: 'HAS', receiptNo: undefined },
     ]
     const insert = db.prepare('INSERT INTO ledger_entries (id, sid, ts, label, description, amount, unit, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     for (const e of seedEntries) {
@@ -92,7 +92,8 @@ function getLedger(sid: string): LedgerEntry[] {
 }
 
 function addEntry(sid: string, entry: Omit<LedgerEntry, 'id' | 'ts'>): LedgerEntry {
-  const id = `e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+  // Use crypto.randomUUID() for collision-free IDs (Date.now()+random collides on rapid-fire requests)
+  const id = `e_${crypto.randomUUID()}`
   const ts = Date.now()
   db.prepare('INSERT INTO ledger_entries (id, sid, ts, label, description, amount, unit, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, sid, ts, entry.label, entry.description, entry.amount, entry.unit, entry.receiptNo ?? null)

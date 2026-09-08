@@ -81,6 +81,13 @@ db.exec(`
     last_checked_at INTEGER NOT NULL,
     last_net_asset_base REAL NOT NULL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS rate_limit_hits (
+    sid TEXT NOT NULL,
+    action TEXT NOT NULL,
+    ts INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_rate_limit ON rate_limit_hits(sid, action, ts);
 `)
 
 // ─── Seed (only if tables are empty) ──────────────────────────────────────────
