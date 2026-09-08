@@ -76,9 +76,26 @@ export function checkRateLimit(sid: string, action: string, max: number, windowM
 // ─── Presets ────────────────────────────────────────────────────────────────
 
 const BUY_MAX = Number(process.env.RATE_LIMIT_BUY_MAX) || 10
+const RECEIVE_MAX = Number(process.env.RATE_LIMIT_RECEIVE_MAX) || 10
+const HCS_MAX = Number(process.env.RATE_LIMIT_HCS_MAX) || 5
 const WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000 // 1 hour
 
-/** Rate limit for the Buy endpoint. */
+/** Rate limit for the Buy endpoint. Keyed by sid. */
 export function checkBuyRateLimit(sid: string): RateLimitResult {
   return checkRateLimit(sid, 'buy', BUY_MAX, WINDOW_MS)
+}
+
+/** Rate limit for the Receive endpoint. Keyed by sid. */
+export function checkReceiveRateLimit(sid: string): RateLimitResult {
+  return checkRateLimit(sid, 'receive', RECEIVE_MAX, WINDOW_MS)
+}
+
+/** Rate limit for HCS-U7 session creation. Keyed by IP (sid doesn't exist yet). */
+export function checkHcsSessionRateLimit(ip: string): RateLimitResult {
+  return checkRateLimit(`ip:${ip}`, 'hcs_session', HCS_MAX, WINDOW_MS)
+}
+
+/** Rate limit for HCS-U7 verification. Keyed by IP (sid is created only on success). */
+export function checkHcsVerifyRateLimit(ip: string): RateLimitResult {
+  return checkRateLimit(`ip:${ip}`, 'hcs_verify', HCS_MAX, WINDOW_MS)
 }

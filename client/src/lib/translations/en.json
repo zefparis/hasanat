@@ -140,7 +140,8 @@
     "csvReceipt": "Receipt",
     "pdfTitle": "Hasanat - Activity Statement",
     "pdfGenerated": "Generated {date}",
-    "toastRateLimited": "Too many Buy transactions. Please slow down and try again later."
+    "toastRateLimited": "Too many Buy transactions. Please slow down and try again later.",
+    "toastReceiveRateLimited": "Too many Receive transactions. Please slow down and try again later."
   },
   "pay": {
     "title": "Pay",

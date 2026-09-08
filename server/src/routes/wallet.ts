@@ -6,7 +6,7 @@ import { Router } from 'express'
 import {
   getWalletState, getLedgerEntries, buy, send, receive, pay, isMockLedger,
 } from '../services/wallet'
-import { checkBuyRateLimit } from '../services/rate-limit'
+import { checkBuyRateLimit, checkReceiveRateLimit } from '../services/rate-limit'
 
 // Simple sid extraction from header (the auth proxy sets the Hasanat session id).
 function sidFrom(req: { headers: Record<string, string | string[] | undefined> }): string {
@@ -64,6 +64,20 @@ r.post('/receive', (req, res) => {
     const sid = sidFrom(req)
     const { amount } = req.body ?? {}
     if (typeof amount !== 'number' || amount <= 0) { res.status(400).json({ error: 'invalid_amount' }); return }
+
+    // Rate limit: same risk as Buy — generates free HAS in a loop.
+    const rl = checkReceiveRateLimit(sid)
+    if (!rl.allowed) {
+      res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many Receive transactions. Please slow down and try again later.',
+        retryAfterMs: rl.retryAfterMs,
+        limit: rl.limit,
+        windowMs: rl.windowMs,
+      })
+      return
+    }
+
     res.json(receive(sid, amount))
   } catch (e) { res.status(400).json({ error: 'receive_failed', message: (e as Error).message }) }
 })

@@ -5,14 +5,25 @@
  *
  * Storage: SQLite (see db.ts). Sessions persist across process restarts.
  */
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import {
   createSession, submitVerification, isMockMode,
   type HcsVerificationResult,
 } from '../services/hcs-u7'
 import db from '../services/db'
+import { checkHcsSessionRateLimit, checkHcsVerifyRateLimit } from '../services/rate-limit'
 
 const router = Router()
+
+/**
+ * Extract the client IP for rate-limiting HCS-U7 endpoints.
+ * These endpoints are called BEFORE a sid exists (session creates it),
+ * so we rate-limit by IP instead of sid.
+ * Requires `app.set('trust proxy', true)` in index.ts for Render.
+ */
+function ipFrom(req: Request): string {
+  return req.ip || req.socket.remoteAddress || 'unknown'
+}
 
 interface HasanatSession {
   sessionPublicId: string
@@ -52,8 +63,21 @@ router.get('/health', (_req, res) => {
 
 // POST /api/hasanat/session — create a cognitive verification session.
 // Client payload: none required. Returns the HCS-U7 sessionPublicId.
-router.post('/session', async (_req, res) => {
+// Rate-limited by IP (5/hour) — this endpoint calls upstream HCS-U7 (real cost/quota).
+router.post('/session', async (req, res) => {
   try {
+    const ip = ipFrom(req)
+    const rl = checkHcsSessionRateLimit(ip)
+    if (!rl.allowed) {
+      res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many session creation attempts. Please slow down and try again later.',
+        retryAfterMs: rl.retryAfterMs,
+        limit: rl.limit,
+        windowMs: rl.windowMs,
+      })
+      return
+    }
     const s = await createSession()
     res.json(s)
   } catch (e) {
@@ -64,8 +88,21 @@ router.post('/session', async (_req, res) => {
 // POST /api/hasanat/verify — submit the hold-to-verify cognitive verification.
 // Client payload: { sessionPublicId, deviceFingerprint?, signals? }
 // Server forces tenant_id + source upstream; sanitizes the response.
+// Rate-limited by IP (5/hour) — this endpoint calls upstream HCS-U7 (real cost/quota).
 router.post('/verify', async (req, res) => {
   try {
+    const ip = ipFrom(req)
+    const rl = checkHcsVerifyRateLimit(ip)
+    if (!rl.allowed) {
+      res.status(429).json({
+        error: 'rate_limited',
+        message: 'Too many verification attempts. Please slow down and try again later.',
+        retryAfterMs: rl.retryAfterMs,
+        limit: rl.limit,
+        windowMs: rl.windowMs,
+      })
+      return
+    }
     const { sessionPublicId, deviceFingerprint, signals } = req.body ?? {}
     if (!sessionPublicId || typeof sessionPublicId !== 'string') {
       res.status(400).json({ error: 'missing_sessionPublicId' })

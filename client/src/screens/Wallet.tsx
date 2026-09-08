@@ -111,7 +111,7 @@ export default function Wallet() {
   function doReceive() {
     toast(t('wallet.toastSimulating'))
     setTimeout(() => {
-      receive(150).then(() => toast(t('wallet.toastReceived'))).catch(() => toast(t('wallet.toastReceiveFailed')))
+      receive(150).then(() => toast(t('wallet.toastReceived'))).catch((e) => toast(e instanceof ApiError ? (e.code === 'rate_limited' ? t('wallet.toastReceiveRateLimited') : e.message) : t('wallet.toastReceiveFailed')))
     }, 1500)
   }
 

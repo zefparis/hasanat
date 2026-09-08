@@ -11,6 +11,9 @@ import exploreRoutes from './routes/explore'
 import { startBackupScheduler } from './services/backup'
 
 const app = express()
+// Trust the Render proxy so req.ip reflects the real client IP (not the proxy's).
+// Render runs behind a reverse proxy; without this, req.ip would be the proxy IP.
+app.set('trust proxy', true)
 app.use(cors())
 app.use(express.json())
 app.use(morgan('dev'))
