@@ -1,6 +1,6 @@
 /** Browser API client for the Hasanat backend. Never calls HCS-U7 directly. */
 
-const BASE = '/api'
+const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const REQUEST_TIMEOUT_MS = 12_000
 
