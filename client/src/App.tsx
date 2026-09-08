@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { ThemeProvider } from './lib/theme'
+import { ThemeProvider, useTheme } from './lib/theme'
 import { AuthProvider, useAuth } from './lib/auth'
 import { WalletProvider } from './lib/wallet'
 import { ToastProvider } from './lib/toast'
@@ -23,11 +23,12 @@ function Shell() {
   const { pathname } = useLocation()
   const { sid, loading } = useAuth()
   const { dir } = useI18n()
+  const { theme } = useTheme()
   const showNav = tabRoutes.includes(pathname)
 
   // Sign-in is the only public route. Everything else requires an HCS-U7 session.
   if (!sid && pathname !== '/signin') {
-    if (loading) return <div className="app" style={{ background: 'var(--primary)' }} />
+    if (loading) return <div className="app" data-theme={theme} style={{ background: 'var(--primary)' }} />
     return <Navigate to="/signin" replace />
   }
   if (sid && pathname === '/signin') {
@@ -35,7 +36,7 @@ function Shell() {
   }
 
   return (
-    <div className="app" dir={dir}>
+    <div className="app" data-theme={theme} dir={dir}>
       <Routes>
         <Route path="/signin" element={<SignIn />} />
         <Route path="/" element={<Home />} />

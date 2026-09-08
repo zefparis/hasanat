@@ -13,9 +13,53 @@ interface ThemeCtx {
 
 const Ctx = createContext<ThemeCtx | null>(null)
 
+const MODE_KEY = 'hasanat.theme.mode'
+const THEME_KEY = 'hasanat.theme'
+
+/**
+ * Detect the initial theme for a first-time user.
+ * Priority: saved user choice > prefers-color-scheme > default day.
+ */
+function detectInitialTheme(): { theme: Theme; mode: Mode } {
+  // 1. Saved mode (user has already chosen)
+  try {
+    const savedMode = localStorage.getItem(MODE_KEY)
+    if (savedMode === 'manual') {
+      const savedTheme = localStorage.getItem(THEME_KEY)
+      if (savedTheme === 'night' || savedTheme === 'day') {
+        return { theme: savedTheme, mode: 'manual' }
+      }
+      return { theme: 'day', mode: 'manual' }
+    }
+    if (savedMode === 'auto') {
+      return { theme: 'day', mode: 'auto' } // auto will recompute from prayer times
+    }
+  } catch { /* ignore */ }
+
+  // 2. First launch — check system preference
+  try {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    if (prefersDark) {
+      return { theme: 'night', mode: 'auto' }
+    }
+  } catch { /* ignore */ }
+
+  // 3. Default
+  return { theme: 'day', mode: 'auto' }
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('day')
-  const [mode, setMode] = useState<Mode>('auto')
+  const initial = detectInitialTheme()
+  const [theme, setTheme] = useState<Theme>(initial.theme)
+  const [mode, setMode] = useState<Mode>(initial.mode)
+
+  // Persist mode and manual theme to localStorage
+  useEffect(() => {
+    try { localStorage.setItem(MODE_KEY, mode) } catch { /* ignore */ }
+    if (mode === 'manual') {
+      try { localStorage.setItem(THEME_KEY, theme) } catch { /* ignore */ }
+    }
+  }, [mode, theme])
 
   // Auto night mode follows real prayer times (Maghrib -> Fajr) from the
   // backend prayer service. Manual toggle disables auto.

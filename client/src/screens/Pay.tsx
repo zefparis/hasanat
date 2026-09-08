@@ -121,7 +121,7 @@ export default function Pay() {
 
       {stage === 'scan' && (
         <>
-          <div className="scan" style={{ margin: '8px 18px 0', background: 'var(--ink)', borderRadius: 22, aspectRatio: '1 / 1.05', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <div className="scan" style={{ margin: '8px 18px 0', background: '#0B1410', borderRadius: 22, aspectRatio: '1 / 1.05', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {cameraOk === null && <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('pay.startingCamera')}</p>}
             {cameraOk === false && (
               <div style={{ textAlign: 'center', padding: 20 }}>

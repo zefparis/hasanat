@@ -50,10 +50,10 @@ export default function Shield() {
       style={{
         transform: 'scale(1.06)',
         transition: 'transform .3s',
-        ...(stale ? { color: 'var(--warn, #c80)' } : undefined),
+        ...(stale ? { color: 'var(--warn)' } : undefined),
       }}
     >
-      <i style={stale ? { background: 'var(--warn, #c80)' } : undefined} />
+      <i style={stale ? { background: 'var(--warn)' } : undefined} />
       {label}
     </span>
   )
