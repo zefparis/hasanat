@@ -17,18 +17,40 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('day')
   const [mode, setMode] = useState<Mode>('auto')
 
-  // Auto night mode follows prayer times (Maghrib -> Fajr).
-  // Real prayer engine is wired in prompt 5; for now a simple sunset/sunrise-ish heuristic
-  // is replaced once the prayer module exists. Manual toggle disables auto.
+  // Auto night mode follows real prayer times (Maghrib -> Fajr) from the
+  // backend prayer service. Manual toggle disables auto.
   useEffect(() => {
     if (mode === 'manual') return
-    const tick = () => {
-      const h = new Date().getHours()
-      setTheme(h >= 18 || h < 5 ? 'night' : 'day')
+    let cancelled = false
+
+    async function tick() {
+      try {
+        const res = await fetch('/api/prayer')
+        if (!res.ok || cancelled) return
+        const schedule = await res.json()
+        const nowSec = new Date().getHours() * 3600 + new Date().getMinutes() * 60
+        const maghrib = schedule.times.find((t: { name: string }) => t.name === 'Maghrib')
+        const fajr = schedule.times.find((t: { name: string }) => t.name === 'Fajr')
+        if (!maghrib || !fajr) return
+        const [mh, mm] = maghrib.time.split(':').map(Number)
+        const [fh, fm] = fajr.time.split(':').map(Number)
+        const maghribSec = mh * 3600 + mm * 60
+        const fajrSec = fh * 3600 + fm * 60
+        // Night from Maghrib to Fajr (wraps past midnight)
+        const isNight = nowSec >= maghribSec || nowSec < fajrSec
+        if (!cancelled) setTheme(isNight ? 'night' : 'day')
+      } catch {
+        // Fallback: simple sunset/sunrise heuristic if prayer API unavailable
+        if (!cancelled) {
+          const h = new Date().getHours()
+          setTheme(h >= 18 || h < 5 ? 'night' : 'day')
+        }
+      }
     }
-    tick()
+
+    void tick()
     const id = setInterval(tick, 60_000)
-    return () => clearInterval(id)
+    return () => { cancelled = true; clearInterval(id) }
   }, [mode])
 
   const toggle = () => {

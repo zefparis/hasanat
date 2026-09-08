@@ -105,12 +105,12 @@ export default function Pay() {
 
       {stage === 'scan' && (
         <>
-          <div className="scan" style={{ margin: '8px 18px 0', background: '#0B1410', borderRadius: 22, aspectRatio: '1 / 1.05', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            {cameraOk === null && <p style={{ color: '#888', fontSize: 13 }}>Starting camera...</p>}
+          <div className="scan" style={{ margin: '8px 18px 0', background: 'var(--ink)', borderRadius: 22, aspectRatio: '1 / 1.05', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {cameraOk === null && <p style={{ color: 'var(--muted)', fontSize: 13 }}>Starting camera...</p>}
             {cameraOk === false && (
               <div style={{ textAlign: 'center', padding: 20 }}>
-                <p style={{ color: '#888', fontSize: 13, lineHeight: 1.5 }}>Camera unavailable or permission denied.</p>
-                <p style={{ color: '#666', fontSize: 12, marginTop: 8 }}>You can still simulate a scan for the demo.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>Camera unavailable or permission denied.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8, opacity: 0.7 }}>You can still simulate a scan for the demo.</p>
               </div>
             )}
             {cameraOk && (
@@ -118,10 +118,10 @@ export default function Pay() {
                 <video ref={videoRef} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <div className="frame" style={{ width: '64%', aspectRatio: '1', position: 'absolute' }}>
                   <div id="scanline" style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'var(--accent)', boxShadow: '0 0 8px var(--accent)' }} />
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTop: '3px solid #E8D7B0', borderLeft: '3px solid #E8D7B0', borderRadius: 4 }} />
-                  <div style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTop: '3px solid #E8D7B0', borderRight: '3px solid #E8D7B0', borderRadius: 4 }} />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottom: '3px solid #E8D7B0', borderLeft: '3px solid #E8D7B0', borderRadius: 4 }} />
-                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottom: '3px solid #E8D7B0', borderRight: '3px solid #E8D7B0', borderRadius: 4 }} />
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTop: '3px solid var(--accent)', borderLeft: '3px solid var(--accent)', borderRadius: 4 }} />
+                  <div style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTop: '3px solid var(--accent)', borderRight: '3px solid var(--accent)', borderRadius: 4 }} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottom: '3px solid var(--accent)', borderLeft: '3px solid var(--accent)', borderRadius: 4 }} />
+                  <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottom: '3px solid var(--accent)', borderRight: '3px solid var(--accent)', borderRadius: 4 }} />
                 </div>
               </>
             )}
