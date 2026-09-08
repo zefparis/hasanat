@@ -73,6 +73,14 @@ db.exec(`
     risk_level TEXT NOT NULL DEFAULT 'low',
     verified_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS zakat_hawl (
+    sid TEXT PRIMARY KEY,
+    nisab_type TEXT NOT NULL DEFAULT 'silver',
+    first_above_nisab_at INTEGER,
+    last_checked_at INTEGER NOT NULL,
+    last_net_asset_base REAL NOT NULL DEFAULT 0
+  );
 `)
 
 // ─── Seed (only if tables are empty) ──────────────────────────────────────────

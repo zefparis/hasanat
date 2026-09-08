@@ -133,9 +133,22 @@ export const chatApi = {
 }
 
 // ─── Give ────────────────────────────────────────────────────────────────────
-export interface ZakatInput { cash: number; gold: number; silver: number; businessAssets: number; debts: number }
+export type ZakatMadhab = 'hanafi' | 'shafi' | 'maliki' | 'hanbali'
+export type NisabType = 'gold' | 'silver'
+export interface ZakatInput {
+  cash: number; gold: number; silver: number; businessAssets: number
+  receivables: number; shortTermDebts: number; longTermDebts: number
+  madhab: ZakatMadhab; nisabType: NisabType
+}
 export interface ZakatResult {
-  netAssetBase: number; zakatDue: number; nisab: number; aboveNisab: boolean; disclaimer: string
+  netAssetBase: number; zakatDue: number; nisab: number; aboveNisab: boolean
+  nisabType: NisabType; nisabMetalPrice: number; nisabPriceSource: 'live' | 'fallback'
+  madhab: ZakatMadhab; goldIncluded: number; deductibleDebts: number
+  hawl: {
+    firstAboveNisabAt: number | null; hawlDurationMs: number
+    hawlCompleteAt: number | null; daysRemaining: number | null; isComplete: boolean
+  }
+  disclaimer: string
 }
 export interface Campaign {
   id: string; title: string; subtitle: string; raised: number; goal: number; verified: boolean; sponsorPool: number
