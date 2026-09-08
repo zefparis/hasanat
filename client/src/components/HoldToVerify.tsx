@@ -11,6 +11,8 @@ const CHECK_KEYS = [
   'holdToVerify.check4',
 ] as const
 
+const HOLD_DURATION_MS = 2400
+
 interface Props {
   /** Called after a successful hold-to-verify with the full verify response. */
   onSuccess: (res: HcsVerifyRes) => void
@@ -21,10 +23,78 @@ interface Props {
   cancelLabel?: string
 }
 
+// ─── Passive signal collection ────────────────────────────────────────────
+// Collects touch pressure, timing, motion, and orientation during the hold.
+// Only includes signals actually observed — never fabricates missing data.
+interface TouchSamples { force: number[]; pressure: number[]; contactStable: boolean }
+interface MotionSamples { magnitudes: number[]; maxMagnitude: number }
+interface OrientationSamples { beta: number[]; gamma: number[] }
+
+function buildSignals(
+  startedAt: number,
+  completedAt: number,
+  touch: TouchSamples | null,
+  motion: MotionSamples | null,
+  orientation: OrientationSamples | null,
+): Record<string, unknown> {
+  const holdDurationMs = completedAt - startedAt
+  const signals: Record<string, unknown> = {
+    source: 'hasanat_mobile',
+    timing: { holdDurationMs, startedAt, completedAt },
+  }
+  if (touch) {
+    const forceSamples = touch.force.length > 0 ? touch.force : touch.pressure
+    const maxForce = forceSamples.length > 0 ? Math.max(...forceSamples) : 0
+    const avgForce = forceSamples.length > 0 ? forceSamples.reduce((a, b) => a + b, 0) / forceSamples.length : 0
+    signals.touch = {
+      available: true,
+      forceSamples,
+      maxForce,
+      avgForce,
+      contactDurationMs: holdDurationMs,
+      contactStable: touch.contactStable,
+    }
+  } else {
+    signals.touch = { available: false }
+  }
+  if (motion && motion.magnitudes.length > 0) {
+    const avg = motion.magnitudes.reduce((a, b) => a + b, 0) / motion.magnitudes.length
+    const variance = motion.magnitudes.reduce((s, v) => s + (v - avg) ** 2, 0) / motion.magnitudes.length
+    signals.motion = {
+      available: true,
+      sampleCount: motion.magnitudes.length,
+      avgMagnitude: avg,
+      maxMagnitude: motion.maxMagnitude,
+      variance,
+    }
+  } else {
+    signals.motion = { available: false }
+  }
+  if (orientation && orientation.beta.length > 0) {
+    const avgBeta = orientation.beta.reduce((a, b) => a + b, 0) / orientation.beta.length
+    const avgGamma = orientation.gamma.reduce((a, b) => a + b, 0) / orientation.gamma.length
+    const allOri = [...orientation.beta, ...orientation.gamma]
+    const avgOri = allOri.reduce((a, b) => a + b, 0) / allOri.length
+    const variance = allOri.reduce((s, v) => s + (v - avgOri) ** 2, 0) / allOri.length
+    signals.orientation = {
+      available: true,
+      sampleCount: orientation.beta.length,
+      avgBeta,
+      avgGamma,
+      variance,
+    }
+  } else {
+    signals.orientation = { available: false }
+  }
+  return signals
+}
+
 /**
  * Reusable hold-to-verify component — the real HCS-U7 cognitive verification.
- * Creates a session on mount, captures the hold gesture, fires a real verify
- * call, and lights up the 4 checks ONLY from the backend response.
+ * Creates a session on mount, captures the hold gesture + passive signals
+ * (touch pressure, timing, motion, orientation), fires a real verify call
+ * AFTER the hold completes, and lights up the 4 checks ONLY from the backend
+ * response.
  *
  * Used by:
  *   - SignIn (step 3, inline)
@@ -53,6 +123,14 @@ export default function HoldToVerify({
   const releasedEarlyRef = useRef(false)
   const verifyInFlightRef = useRef(false)
 
+  // Passive signal collection refs
+  const touchSamplesRef = useRef<TouchSamples | null>(null)
+  const motionSamplesRef = useRef<MotionSamples | null>(null)
+  const orientationSamplesRef = useRef<OrientationSamples | null>(null)
+  const holdStartedAtRef = useRef<number | null>(null)
+  const motionListenerRef = useRef<((e: DeviceMotionEvent) => void) | null>(null)
+  const orientationListenerRef = useRef<((e: DeviceOrientationEvent) => void) | null>(null)
+
   // Create a cognitive session on mount.
   useEffect(() => {
     let cancelled = false
@@ -71,6 +149,7 @@ export default function HoldToVerify({
 
   function retry() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    cleanupSensorListeners()
     setHold('idle')
     setProgress(0)
     setChecks([false, false, false, false])
@@ -85,28 +164,119 @@ export default function HoldToVerify({
       })
   }
 
+  function cleanupSensorListeners() {
+    if (motionListenerRef.current) {
+      window.removeEventListener('devicemotion', motionListenerRef.current)
+      motionListenerRef.current = null
+    }
+    if (orientationListenerRef.current) {
+      window.removeEventListener('deviceorientation', orientationListenerRef.current)
+      orientationListenerRef.current = null
+    }
+  }
+
+  function startSensorCapture() {
+    touchSamplesRef.current = { force: [], pressure: [], contactStable: true }
+    motionSamplesRef.current = null
+    orientationSamplesRef.current = null
+
+    // Motion capture — graceful degradation if unsupported/denied
+    try {
+      const motionHandler = (e: DeviceMotionEvent) => {
+        const acc = e.accelerationIncludingGravity ?? e.acceleration
+        if (!acc) return
+        const mag = Math.sqrt((acc.x ?? 0) ** 2 + (acc.y ?? 0) ** 2 + (acc.z ?? 0) ** 2)
+        if (!motionSamplesRef.current) {
+          motionSamplesRef.current = { magnitudes: [], maxMagnitude: 0 }
+        }
+        motionSamplesRef.current.magnitudes.push(mag)
+        if (mag > motionSamplesRef.current.maxMagnitude) motionSamplesRef.current.maxMagnitude = mag
+      }
+
+      // iOS 13+ requires permission via user gesture
+      const DME = window.DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> }
+      if (DME && typeof DME.requestPermission === 'function') {
+        DME.requestPermission()
+          .then((state: string) => {
+            if (state === 'granted') {
+              window.addEventListener('devicemotion', motionHandler)
+              motionListenerRef.current = motionHandler
+            }
+          })
+          .catch(() => { /* permission denied — omit motion signal */ })
+      } else {
+        window.addEventListener('devicemotion', motionHandler)
+        motionListenerRef.current = motionHandler
+      }
+    } catch { /* unsupported — omit motion */ }
+
+    // Orientation capture — graceful degradation
+    try {
+      const oriHandler = (e: DeviceOrientationEvent) => {
+        if (e.beta == null && e.gamma == null) return
+        if (!orientationSamplesRef.current) {
+          orientationSamplesRef.current = { beta: [], gamma: [] }
+        }
+        orientationSamplesRef.current.beta.push(e.beta ?? 0)
+        orientationSamplesRef.current.gamma.push(e.gamma ?? 0)
+      }
+
+      const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
+      if (DOE && typeof DOE.requestPermission === 'function') {
+        DOE.requestPermission()
+          .then((state: string) => {
+            if (state === 'granted') {
+              window.addEventListener('deviceorientation', oriHandler)
+              orientationListenerRef.current = oriHandler
+            }
+          })
+          .catch(() => { /* permission denied — omit orientation */ })
+      } else {
+        window.addEventListener('deviceorientation', oriHandler)
+        orientationListenerRef.current = oriHandler
+      }
+    } catch { /* unsupported — omit orientation */ }
+  }
+
   function onPointerDown(e: React.PointerEvent) {
     if (hold === 'success' || hold === 'verifying' || creating) return
     e.preventDefault()
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
     releasedEarlyRef.current = false
     holdStartRef.current = null
+    holdStartedAtRef.current = Date.now()
+
+    // Start passive signal capture
+    startSensorCapture()
+    // Record initial touch pressure
+    if (touchSamplesRef.current) {
+      touchSamplesRef.current.pressure.push(e.pressure ?? 0)
+    }
+
     setHold('holding')
     setProgress(0)
     setChecks([false, false, false, false])
     rafRef.current = requestAnimationFrame(fillRing)
-    void startVerify()
   }
 
   function fillRing(ts: number) {
     if (holdStartRef.current === null) holdStartRef.current = ts
     const elapsed = ts - holdStartRef.current
-    const p = Math.min(1, elapsed / 2400)
+    const p = Math.min(1, elapsed / HOLD_DURATION_MS)
     setProgress(p)
-    if (p < 1) rafRef.current = requestAnimationFrame(fillRing)
+    if (p < 1) {
+      rafRef.current = requestAnimationFrame(fillRing)
+    } else {
+      // Hold complete — stop capture, build signals, fire verify
+      const completedAt = Date.now()
+      cleanupSensorListeners()
+      const startedAt = holdStartedAtRef.current ?? completedAt - HOLD_DURATION_MS
+      const signals = buildSignals(startedAt, completedAt, touchSamplesRef.current, motionSamplesRef.current, orientationSamplesRef.current)
+      void startVerify(signals)
+    }
   }
 
-  async function startVerify() {
+  async function startVerify(signals: Record<string, unknown>) {
     const sessionPublicId = sessionPublicIdRef.current
     if (!sessionPublicId) {
       setError(t('holdToVerify.errorNoSessionRetry'))
@@ -116,7 +286,7 @@ export default function HoldToVerify({
     verifyInFlightRef.current = true
     setHold('verifying')
     try {
-      const res = await hcsApi.verify({ sessionPublicId, signals: { source: 'hasanat_mobile' } })
+      const res = await hcsApi.verify({ sessionPublicId, signals })
       verifyInFlightRef.current = false
       if (releasedEarlyRef.current) {
         setHold('failed')
@@ -141,21 +311,36 @@ export default function HoldToVerify({
     }
   }
 
-  function onPointerUp() {
+  function onPointerUp(e: React.PointerEvent) {
+    // Capture touch pressure on release
+    if (touchSamplesRef.current && hold === 'holding') {
+      touchSamplesRef.current.pressure.push(e.pressure ?? 0)
+    }
     if (hold === 'success' || hold === 'failed') return
     if (verifyInFlightRef.current) {
       releasedEarlyRef.current = true
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      cleanupSensorListeners()
       setHold('failed')
       setError(t('holdToVerify.errorReleased'))
       return
     }
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    cleanupSensorListeners()
     setHold('idle')
     setProgress(0)
   }
 
-  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
+  // Track pointer movement for pressure samples during hold
+  function onPointerMove(e: React.PointerEvent) {
+    if (hold !== 'holding' || !touchSamplesRef.current) return
+    touchSamplesRef.current.pressure.push(e.pressure ?? 0)
+  }
+
+  useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    cleanupSensorListeners()
+  }, [])
 
   return (
     <>
@@ -169,6 +354,7 @@ export default function HoldToVerify({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onPointerLeave={onPointerUp}
+        onPointerMove={onPointerMove}
       >
         <svg viewBox="0 0 150 150" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
           <circle cx="75" cy="75" r="70" stroke="var(--line)" strokeWidth="5" fill="none" />

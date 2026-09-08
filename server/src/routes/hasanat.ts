@@ -139,10 +139,12 @@ router.post('/verify', async (req, res) => {
       return
     }
     // Persist a Hasanat session the badge can read.
+    // score may be null — the authoritative trust_score is not in the HTTP
+    // response. Store 0 for null (honest: no fabricated score in the DB).
     const sid = newId()
     const verifiedAt = Date.now()
     db.prepare('INSERT INTO hasanat_sessions (sid, session_public_id, is_human, score, risk_level, verified_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(sid, result.sessionPublicId, result.isHuman ? 1 : 0, result.score, result.riskLevel, verifiedAt)
+      .run(sid, result.sessionPublicId, result.isHuman ? 1 : 0, result.score ?? 0, result.riskLevel, verifiedAt)
     res.json({ sid, result, verifiedAt })
   } catch (e) {
     res.status(502).json({ error: 'verify_failed', message: (e as Error).message })

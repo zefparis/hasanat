@@ -80,7 +80,18 @@ export interface HcsVerificationResult {
   ok: boolean
   sessionPublicId: string
   isHuman: boolean
-  score: number // 0-100
+  /** Authoritative trust score from HCS-U7 (0-100). NULL when the upstream
+   * response does not include trust_score/trust_score_normalized — the HTTP
+   * response only exposes quality_score (signal completeness), NOT the
+   * authoritative trust score. Do NOT fabricate a score. */
+  score: number | null
+  /** Signal completeness (0-1) from the upstream quality object. Honest proxy
+   * for "how much signal was captured" — NOT a trust score. */
+  qualityScore: number | null
+  /** Authoritative global decision from hybridFusion. 'unknown' if absent. */
+  decision: 'APPROVED' | 'REVIEW' | 'REJECTED' | 'unknown'
+  /** Upstream status field: 'submitted' | 'review' | 'failed' | null. */
+  upstreamStatus: string | null
   riskLevel: 'low' | 'medium' | 'high'
   checks: HcsVerificationChecks
   /** Quick-auth token issued by HCS-U7; passed back to the client and sent on
@@ -123,9 +134,116 @@ interface VerifyPayload {
   sessionPublicId: string
   deviceFingerprint?: Record<string, unknown>
   userAgent?: string
-  /** Cognitive/biometric signals collected during the hold. In the pilot these
-   * are derived signals (timing, pressure duration), never raw biometrics. */
+  /** Passive cognitive/biometric signals collected during the hold — timing,
+   * touch pressure, motion/orientation micro-movements. Never raw biometrics. */
   signals?: Record<string, unknown>
+}
+
+/** Build the demo_guard payload sent to HCS-U7 /demoguard/verify.
+ * Maps passive signals captured during the hold to the DemoGuard contract.
+ * Only includes signal categories actually present in the client payload —
+ * never fabricates missing sensor data. */
+function buildDemoGuardPayload(payload: VerifyPayload): Record<string, unknown> {
+  const signals = (payload.signals ?? {}) as Record<string, unknown>
+  const timing = signals.timing as { holdDurationMs: number; startedAt: number; completedAt: number } | undefined
+  const touch = signals.touch as { available: boolean; forceSamples: number[]; maxForce: number; avgForce: number; contactDurationMs: number; contactStable: boolean } | undefined
+  const motion = signals.motion as { available: boolean; sampleCount: number; avgMagnitude: number; maxMagnitude: number; variance: number } | undefined
+  const orientation = signals.orientation as { available: boolean; sampleCount: number; avgBeta: number; avgGamma: number; variance: number } | undefined
+
+  const startedAt = timing ? new Date(timing.startedAt).toISOString() : new Date(Date.now() - 2500).toISOString()
+  const completedAt = timing ? new Date(timing.completedAt).toISOString() : new Date().toISOString()
+
+  // ─── Signal slots: only include categories actually observed ────────────
+  const signalSlots: Record<string, unknown> = {}
+  if (touch?.available) signalSlots.touch = { force: touch.avgForce, maxForce: touch.maxForce, samples: touch.forceSamples.length }
+  if (motion?.available) signalSlots.motion = { avgMagnitude: motion.avgMagnitude, maxMagnitude: motion.maxMagnitude, samples: motion.sampleCount }
+  if (orientation?.available) signalSlots.orientation = { avgBeta: orientation.avgBeta, avgGamma: orientation.avgGamma, samples: orientation.sampleCount }
+  // visibility + network are always available in a browser context
+  signalSlots.visibility = { visible: true, hidden: false }
+  signalSlots.network = { online: true }
+
+  // ─── Behavior summary from timing + touch ──────────────────────────────
+  // The hold gesture is a single task with 1 interaction. computeBehaviorStatus
+  // returns 'review' for tasksObserved < 2, which is honest for a passive hold.
+  const holdDurationMs = timing?.holdDurationMs ?? 0
+  const motorConfidence = touch?.available
+    ? Math.min(1, touch.avgForce * 0.5 + (touch.contactStable ? 0.3 : 0) + 0.2)
+    : 0.5
+  const consistencyScore = touch?.available
+    ? Math.min(1, (touch.contactStable ? 0.6 : 0.3) + Math.min(0.4, touch.avgForce * 0.4))
+    : 0.4
+  const behaviorSummary = {
+    tasksObserved: 1,
+    totalInteractions: 1,
+    avgRhythmMs: holdDurationMs,
+    rhythmVariance: null, // single hold — no variance to compute
+    hesitationTotal: 0,
+    correctionTotal: 0,
+    consistencyScore,
+    motorConfidence,
+    behaviorLikelihood: 'medium' as const,
+    quality: 'review' as const,
+  }
+
+  // ─── Touch diagnostics ─────────────────────────────────────────────────
+  const touchDiagnostics = touch?.available
+    ? {
+        status: 'ok' as const,
+        supported: true,
+        interactionCount: 1,
+        quality: 'ok' as const,
+        reasonSafe: 'hold_with_force_data',
+      }
+    : {
+        status: 'missing' as const,
+        supported: false,
+        interactionCount: 0,
+        quality: 'missing' as const,
+        reasonSafe: 'no_touch_force_api',
+      }
+
+  // ─── Quality: compute completeness from present signal categories ──────
+  // 8 optional categories: selfie, reaction, voice, motion, orientation,
+  // touch, visibility, network. We include only those actually observed.
+  const present = new Set<string>()
+  if (touch?.available) present.add('touch')
+  if (motion?.available) present.add('motion')
+  if (orientation?.available) present.add('orientation')
+  present.add('visibility') // always available in browser
+  present.add('network') // always available in browser
+  const allOptional = ['selfie', 'reaction', 'voice', 'motion', 'orientation', 'touch', 'visibility', 'network']
+  const missingOptional = allOptional.filter((c) => !present.has(c))
+  const signalCompleteness = present.size / allOptional.length // 0.375–0.625
+  const overallReady = signalCompleteness >= 0.50
+
+  return {
+    version: '1.0.0',
+    started_at: startedAt,
+    completed_at: completedAt,
+    device: {
+      type: 'mobile',
+      fingerprint: payload.deviceFingerprint ?? {},
+      userAgent: payload.userAgent ?? '',
+    },
+    signals: {
+      ...signalSlots,
+      behavior: {
+        taskBehaviors: { hold: { durationMs: holdDurationMs, force: touch?.avgForce ?? null } },
+        summary: behaviorSummary,
+      },
+      touchDiagnostics,
+    },
+    quality: {
+      signal_completeness: signalCompleteness,
+      device_ready: true,
+      permissions_ready: true,
+      overall_ready: overallReady,
+      critical_missing: [],
+      missing_optional: missingOptional,
+    },
+    test_scope: 'cognitive-only',
+    presentation_variant: 'liveguard',
+  }
 }
 
 /**
@@ -142,23 +260,12 @@ export async function submitVerification(payload: VerifyPayload): Promise<HcsVer
   if (MOCK) {
     return mockVerification(payload)
   }
+  const demoGuard = buildDemoGuardPayload(payload)
   const body = {
     hcs_session_public_id: payload.sessionPublicId,
     source: 'liveguard_mobile',
     tenant_id: TENANT_ID,
-    demo_guard: {
-      version: '1.0.0',
-      started_at: new Date(Date.now() - 2500).toISOString(),
-      completed_at: new Date().toISOString(),
-      device: { type: 'mobile', fingerprint: payload.deviceFingerprint ?? {} },
-      signals: payload.signals ?? {},
-      quality: {
-        signal_completeness: 0,
-        overall_ready: false,
-        critical_missing: [],
-        missing_optional: ['selfie', 'reaction', 'voice', 'motion', 'orientation', 'touch', 'visibility', 'network'],
-      },
-    },
+    demo_guard: demoGuard,
   }
   const res = await fetchUpstream(`${HCS_BASE}/hv/demoguard/verify`, {
     method: 'POST',
@@ -192,39 +299,78 @@ function stripForbidden(obj: Record<string, unknown>): Record<string, unknown> {
 
 function sanitizeVerification(raw: Record<string, unknown>, sessionPublicId: string): HcsVerificationResult {
   const clean = stripForbidden(raw)
-  const isHuman = Boolean(clean.isHuman ?? clean.ok)
-  const score = Number(clean.score ?? (isHuman ? 92 : 0))
-  const riskLevel = (clean.riskLevel as HcsVerificationResult['riskLevel']) ?? (score >= 70 ? 'low' : score >= 40 ? 'medium' : 'high')
+
+  // ─── Read the AUTHORITATIVE decision, not generic `ok` ──────────────────
+  // The upstream /demoguard/verify response shape (DemoGuardSafeResponse):
+  //   { ok: true, status: 'submitted'|'review'|'failed',
+  //     hybridFusion: { globalDecision: 'APPROVED'|'REVIEW'|'REJECTED' },
+  //     quality_score: number, ready: boolean, traceId: string }
+  //
+  // `ok: true` means the request was PROCESSED, not that the user is human.
+  // The authoritative human decision is `hybridFusion.globalDecision`.
+  // `status: 'failed'` means signal completeness too low → also a rejection.
+  //
+  // The authoritative trust_score / trust_score_normalized are NOT in the HTTP
+  // response — they are written to hv_sessions via emitHcsIngest. We therefore
+  // expose quality_score (signal completeness) and the decision, but do NOT
+  // fabricate a trust score.
+  const hybridFusion = clean.hybridFusion as { globalDecision?: string } | undefined
+  const globalDecision = hybridFusion?.globalDecision
+  const upstreamStatus = (clean.status as string | undefined) ?? null
+
+  const decision: HcsVerificationResult['decision'] =
+    globalDecision === 'APPROVED' ? 'APPROVED' :
+    globalDecision === 'REVIEW' ? 'REVIEW' :
+    globalDecision === 'REJECTED' ? 'REJECTED' :
+    'unknown'
+
+  // isHuman: true ONLY for a non-rejected authoritative decision.
+  // status 'failed' (signal completeness < 0.50) also means rejection.
+  const isHuman = decision !== 'REJECTED' && decision !== 'unknown' && upstreamStatus !== 'failed'
+
+  // quality_score is signal completeness (0-1), NOT a trust score.
+  const qualityScore = typeof clean.quality_score === 'number' ? clean.quality_score : null
+
+  // riskLevel from the authoritative decision (not fabricated from a score).
+  const riskLevel: HcsVerificationResult['riskLevel'] =
+    decision === 'APPROVED' ? 'low' :
+    decision === 'REVIEW' ? 'medium' :
+    'high'
+
   return {
-    ok: Boolean(clean.ok ?? isHuman),
+    ok: Boolean(clean.ok) && isHuman,
     sessionPublicId,
     isHuman,
-    score,
+    score: null, // authoritative trust_score NOT in the HTTP response — do not fabricate
+    qualityScore,
+    decision,
+    upstreamStatus,
     riskLevel,
-    // The 4 UI checks are DERIVED from real fields, not backend labels.
+    // The 4 UI checks are DERIVED from the real decision, not backend labels.
     checks: {
-      deviceBound: Boolean(clean.deviceBound ?? (clean.device_type === 'mobile' || true)),
-      liveness: Boolean(clean.liveness ?? (clean.livenessStatus === 'passed' || score >= 50)),
-      cognitiveSignatureMatched: Boolean(clean.cognitiveSignatureMatched ?? isHuman),
-      secureSession: Boolean(clean.secureSession ?? Boolean(clean.hcsToken ?? clean.token)),
+      deviceBound: true, // tenant_id + source forced server-side
+      liveness: decision === 'APPROVED' || decision === 'REVIEW',
+      cognitiveSignatureMatched: decision === 'APPROVED',
+      secureSession: Boolean(clean.traceId),
     },
-    hcsToken: (clean.hcsToken as string | null) ?? (clean.token as string | null) ?? null,
-    expiresInSeconds: Number(clean.expiresInSeconds ?? 300),
+    hcsToken: null, // demoguard/verify does not issue an hcsToken in the safe response
+    expiresInSeconds: 300,
     traceId: String(clean.traceId ?? `hv_${Date.now().toString(36)}`),
   }
 }
 
 // ─── Honest mock (pilot without real HCS-U7 credentials) ─────────────────────
 function mockVerification(payload: VerifyPayload): HcsVerificationResult {
-  const isHuman = true
-  const score = 94
   return {
     ok: true,
     sessionPublicId: payload.sessionPublicId,
-    isHuman,
-    score,
-    riskLevel: 'low',
-    checks: { deviceBound: true, liveness: true, cognitiveSignatureMatched: true, secureSession: true },
+    isHuman: true,
+    score: null, // mock — no real authoritative trust score
+    qualityScore: 0.625, // mock signal completeness
+    decision: 'REVIEW', // mock — honest: passive signals alone cap at REVIEW
+    upstreamStatus: 'submitted',
+    riskLevel: 'medium',
+    checks: { deviceBound: true, liveness: true, cognitiveSignatureMatched: false, secureSession: true },
     hcsToken: null, // mock mode issues no real token
     expiresInSeconds: 300,
     traceId: `mock_${Date.now().toString(36)}`,

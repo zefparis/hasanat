@@ -52,7 +52,16 @@ export interface HcsVerifyResult {
   ok: boolean
   sessionPublicId: string
   isHuman: boolean
-  score: number
+  /** Authoritative trust score (0-100). NULL when the upstream response does
+   * not include trust_score — the demoguard/verify HTTP response only exposes
+   * quality_score (signal completeness), NOT the authoritative trust score. */
+  score: number | null
+  /** Signal completeness (0-1) from the upstream quality object. */
+  qualityScore: number | null
+  /** Authoritative global decision from hybridFusion. */
+  decision: 'APPROVED' | 'REVIEW' | 'REJECTED' | 'unknown'
+  /** Upstream status field: 'submitted' | 'review' | 'failed' | null. */
+  upstreamStatus: string | null
   riskLevel: 'low' | 'medium' | 'high'
   checks: HcsChecks
   hcsToken: string | null
@@ -65,7 +74,7 @@ export interface HcsSessionStatusRes {
   sid: string
   sessionPublicId: string
   isHuman: boolean
-  score: number
+  score: number | null
   riskLevel: 'low' | 'medium' | 'high'
   verifiedAt: number
 }
