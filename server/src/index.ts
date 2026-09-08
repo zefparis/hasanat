@@ -12,9 +12,10 @@ import { startBackupScheduler } from './services/backup'
 
 const app = express()
 // Trust 1 proxy hop (Render's load balancer). This is the value Render's own
-// docs recommend. Note: for IP-based rate limiting on HCS-U7 endpoints, we
-// read the leftmost X-Forwarded-For entry directly (where Render puts the
-// real client IP), NOT req.ip — see ipFrom() in routes/hasanat.ts.
+// docs recommend. For IP-based rate limiting on HCS-U7 endpoints, we use
+// CF-Connecting-IP (set by Cloudflare, unforgable by the client) rather than
+// req.ip or the leftmost XFF entry (both of which can be forged on Render).
+// See ipFrom() in routes/hasanat.ts.
 // Ref: https://render.com/articles/how-render-handles-ddos-attacks
 app.set('trust proxy', 1)
 app.use(cors())
@@ -23,17 +24,6 @@ app.use(morgan('dev'))
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'hasanat-server', version: '0.1.0', mode: 'pilot-mock' })
-})
-
-// TEMP DEBUG: inspect XFF and req.ip on Render — remove before final commit
-app.get('/api/debug-ip', (req, res) => {
-  res.json({
-    reqIp: req.ip,
-    xForwardedFor: req.headers['x-forwarded-for'] || null,
-    cfConnectingIp: req.headers['cf-connecting-ip'] || null,
-    trueClientIp: req.headers['true-client-ip'] || null,
-    socketRemoteAddress: req.socket.remoteAddress,
-  })
 })
 
 // HCS-U7 auth + session proxy — the ONLY surface the browser calls for identity.

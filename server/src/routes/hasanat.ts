@@ -20,20 +20,28 @@ const router = Router()
  * These endpoints are called BEFORE a sid exists (session creates it),
  * so we rate-limit by IP instead of sid.
  *
- * IMPORTANT: Render's load balancer puts the REAL client IP as the FIRST
- * (leftmost) entry in X-Forwarded-For, followed by any client-forged values.
- * We read the leftmost entry directly — NOT req.ip, which with trust proxy: 1
- * returns the rightmost untrusted entry (a forgeable value).
+ * On Render, traffic flows: Client → Cloudflare → Render LB → App.
+ * The client CAN forge X-Forwarded-For (it becomes the leftmost entry).
+ * Cloudflare APPENDS the real IP after the forged value, and also sets
+ * CF-Connecting-IP to the real client IP (which the client cannot forge).
  *
- * Ref: https://render.com/articles/how-render-handles-ddos-attacks
- *   "req.headers['x-forwarded-for']?.split(',')[0] || req.ip"
+ * Priority (most trustworthy first):
+ *   1. CF-Connecting-IP — set by Cloudflare, client cannot forge
+ *   2. True-Client-IP — set by Cloudflare Enterprise, client cannot forge
+ *   3. req.ip — Express with trust proxy: 1 (rightmost XFF = Render LB's IP, NOT client)
+ *   4. socket.remoteAddress — direct connection (only without proxy)
+ *
+ * Do NOT use the leftmost XFF entry — it's client-forgable on Render.
  */
 function ipFrom(req: Request): string {
-  const xff = req.headers['x-forwarded-for']
-  if (typeof xff === 'string') {
-    const first = xff.split(',')[0]?.trim()
-    if (first) return first
-  }
+  const cf = req.headers['cf-connecting-ip']
+  if (typeof cf === 'string' && cf.trim()) return cf.trim()
+
+  const tci = req.headers['true-client-ip']
+  if (typeof tci === 'string' && tci.trim()) return tci.trim()
+
+  // Fallback: req.ip (with trust proxy: 1, this is the rightmost XFF entry,
+  // which on Render is the LB's IP — not ideal but at least consistent per service)
   return req.ip || req.socket.remoteAddress || 'unknown'
 }
 
