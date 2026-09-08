@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './lib/theme'
 import { AuthProvider, useAuth } from './lib/auth'
+import { WalletProvider } from './lib/wallet'
+import { ToastProvider } from './lib/toast'
 import Nav from './components/Nav'
 import SignIn from './screens/SignIn'
 import Home from './screens/Home'
@@ -54,9 +56,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <Shell />
-        </BrowserRouter>
+        <WalletProvider>
+          <ToastProvider>
+            <BrowserRouter>
+              <Shell />
+            </BrowserRouter>
+          </ToastProvider>
+        </WalletProvider>
       </AuthProvider>
     </ThemeProvider>
   )

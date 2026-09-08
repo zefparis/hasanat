@@ -22,7 +22,35 @@
  * is the verified human behind it.
  */
 
-const MOCK = process.env.HCS_U7_MOCK === '1' || !process.env.HV_API_URL || !process.env.HV_API_KEY
+const EXPLICIT_MOCK = process.env.HCS_U7_MOCK === '1'
+const CREDS_MISSING = !process.env.HV_API_URL || !process.env.HV_API_KEY
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+// In production, missing HCS-U7 credentials WITHOUT an explicit HCS_U7_MOCK=1
+// is a configuration error — the server must refuse to start rather than silently
+// fall back to mock. In dev, we allow the silent fallback for convenience.
+if (IS_PROD && CREDS_MISSING && !EXPLICIT_MOCK) {
+  // eslint-disable-next-line no-console
+  console.error(
+    '\n[FATAL] HCS-U7 credentials missing in production (HV_API_URL / HV_API_KEY).\n' +
+    'Set them, or set HCS_U7_MOCK=1 to explicitly run in mock mode.\n' +
+    'Refusing to start — silent fallback to mock in prod is disabled.\n',
+  )
+  process.exit(1)
+}
+
+const MOCK = EXPLICIT_MOCK || CREDS_MISSING
+
+if (MOCK) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    `\n[WARN] ════════════════════════════════════════════════════════════\n` +
+    `[WARN]  HCS-U7 MOCK MODE ACTIVE${EXPLICIT_MOCK ? ' (explicit HCS_U7_MOCK=1)' : ' (HV_API_URL/HV_API_KEY missing)'}\n` +
+    `[WARN]  All HCS-U7 calls resolve locally. No real identity verification.\n` +
+    `[WARN]  This is fine for the pilot — NOT for production with real users.\n` +
+    `[WARN] ════════════════════════════════════════════════════════════\n`,
+  )
+}
 
 const HCS_BASE = (process.env.HCS_U7_BASE_URL || 'https://api.hcs-u7.org').replace(/\/+$/, '')
 const HV_BASE = (process.env.HV_API_URL || '').replace(/\/+$/, '')

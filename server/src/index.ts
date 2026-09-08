@@ -2,6 +2,8 @@ import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 import hasanatRoutes from './routes/hasanat'
+import prayerRoutes from './routes/prayer'
+import walletRoutes from './routes/wallet'
 
 const app = express()
 app.use(cors())
@@ -15,8 +17,11 @@ app.get('/api/health', (_req, res) => {
 // HCS-U7 auth + session proxy — the ONLY surface the browser calls for identity.
 app.use('/api/hasanat', hasanatRoutes)
 
-// Wallet/ledger endpoints are wired in prompt 3.
-// Pilot mock backend: no real ledger, no real value moves until validated.
+// Prayer times — real solar calculation, city-configurable.
+app.use('/api/prayer', prayerRoutes)
+
+// Wallet / ledger — pilot mock (no real value moves).
+app.use('/api/wallet', walletRoutes)
 
 const port = Number(process.env.PORT) || 8787
 app.listen(port, () => {
