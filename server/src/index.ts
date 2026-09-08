@@ -11,10 +11,10 @@ import exploreRoutes from './routes/explore'
 import { startBackupScheduler } from './services/backup'
 
 const app = express()
-// Trust exactly 1 proxy hop (Render's load balancer). NOT `true`, which would
-// trust the leftmost X-Forwarded-For entry — forgeable by the client to bypass
-// IP-based rate limits. With `1`, Express uses the rightmost entry (the real
-// client IP appended by Render's LB), ignoring client-forged left entries.
+// Trust 1 proxy hop (Render's load balancer). This is the value Render's own
+// docs recommend. Note: for IP-based rate limiting on HCS-U7 endpoints, we
+// read the leftmost X-Forwarded-For entry directly (where Render puts the
+// real client IP), NOT req.ip — see ipFrom() in routes/hasanat.ts.
 // Ref: https://render.com/articles/how-render-handles-ddos-attacks
 app.set('trust proxy', 1)
 app.use(cors())

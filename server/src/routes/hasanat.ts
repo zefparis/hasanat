@@ -19,9 +19,21 @@ const router = Router()
  * Extract the client IP for rate-limiting HCS-U7 endpoints.
  * These endpoints are called BEFORE a sid exists (session creates it),
  * so we rate-limit by IP instead of sid.
- * Requires `app.set('trust proxy', true)` in index.ts for Render.
+ *
+ * IMPORTANT: Render's load balancer puts the REAL client IP as the FIRST
+ * (leftmost) entry in X-Forwarded-For, followed by any client-forged values.
+ * We read the leftmost entry directly — NOT req.ip, which with trust proxy: 1
+ * returns the rightmost untrusted entry (a forgeable value).
+ *
+ * Ref: https://render.com/articles/how-render-handles-ddos-attacks
+ *   "req.headers['x-forwarded-for']?.split(',')[0] || req.ip"
  */
 function ipFrom(req: Request): string {
+  const xff = req.headers['x-forwarded-for']
+  if (typeof xff === 'string') {
+    const first = xff.split(',')[0]?.trim()
+    if (first) return first
+  }
   return req.ip || req.socket.remoteAddress || 'unknown'
 }
 
