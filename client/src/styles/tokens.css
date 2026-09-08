@@ -1,0 +1,54 @@
+/* Hasanat design tokens — copied verbatim from the master build spec (section 1).
+   Do NOT reinterpret these values. */
+:root {
+  /* Theme: day */
+  --bg: #F5EEE1;
+  --surface: #FFFCF6;
+  --surface2: #EFE6D6;
+  --ink: #1E2A26;
+  --muted: #6F675A;
+  --line: #E4DBC8;
+  --primary: #0F4A3C;
+  --primary-2: #166653;
+  --accent: #C08A3E;
+  --accent-soft: #F1E4CB;
+  --on: #FFFFFF;
+  --ok: #2E7D5B;
+  --ok-soft: #DCEDE3;
+  --warn: #B4652A;
+  --danger: #B23A3A;
+  --bubble-out: #DDF3D8;
+  --bubble-in: #FFFFFF;
+  --wall: #EDE4D3;
+  --tick: #4FA3E3;
+  --shadow: 0 10px 30px rgba(40, 30, 10, 0.10);
+
+  --nav-h: 74px;
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --serif: 'Fraunces', Georgia, serif;
+  --ar: 'Amiri', serif; /* Arabic text */
+}
+
+/* Theme: night (Maghrib -> Fajr, auto or manual switch) */
+.app[data-theme='night'] {
+  --bg: #0F1826;
+  --surface: #172236;
+  --surface2: #1F2C45;
+  --ink: #EFE6D4;
+  --muted: #A39A87;
+  --line: #2A3852;
+  --primary: #1E6B57;
+  --primary-2: #2A8A70;
+  --accent: #D8AC5E;
+  --accent-soft: #3A3120;
+  --on: #FFFFFF;
+  --ok: #5FC49A;
+  --ok-soft: #1E3A32;
+  --warn: #E0A067;
+  --danger: #E07070;
+  --bubble-out: #1F4D3E;
+  --bubble-in: #1C2942;
+  --wall: #121C2E;
+  --tick: #7CC4F5;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
