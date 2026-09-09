@@ -24,18 +24,16 @@ interface Props {
 }
 
 // ─── Passive signal collection ────────────────────────────────────────────
-// Collects touch pressure, timing, motion, and orientation during the hold.
-// Only includes signals actually observed — never fabricates missing data.
+// Collects touch pressure and timing during the hold.
+// Motion/orientation sensors were removed because iOS 13+ requires
+// requestPermission() which shows a native popup that freezes the RAF
+// timer and breaks the hold gesture. Touch + timing signals are sufficient.
 interface TouchSamples { force: number[]; pressure: number[]; contactStable: boolean }
-interface MotionSamples { magnitudes: number[]; maxMagnitude: number }
-interface OrientationSamples { beta: number[]; gamma: number[] }
 
 function buildSignals(
   startedAt: number,
   completedAt: number,
   touch: TouchSamples | null,
-  motion: MotionSamples | null,
-  orientation: OrientationSamples | null,
 ): Record<string, unknown> {
   const holdDurationMs = completedAt - startedAt
   const signals: Record<string, unknown> = {
@@ -57,44 +55,18 @@ function buildSignals(
   } else {
     signals.touch = { available: false }
   }
-  if (motion && motion.magnitudes.length > 0) {
-    const avg = motion.magnitudes.reduce((a, b) => a + b, 0) / motion.magnitudes.length
-    const variance = motion.magnitudes.reduce((s, v) => s + (v - avg) ** 2, 0) / motion.magnitudes.length
-    signals.motion = {
-      available: true,
-      sampleCount: motion.magnitudes.length,
-      avgMagnitude: avg,
-      maxMagnitude: motion.maxMagnitude,
-      variance,
-    }
-  } else {
-    signals.motion = { available: false }
-  }
-  if (orientation && orientation.beta.length > 0) {
-    const avgBeta = orientation.beta.reduce((a, b) => a + b, 0) / orientation.beta.length
-    const avgGamma = orientation.gamma.reduce((a, b) => a + b, 0) / orientation.gamma.length
-    const allOri = [...orientation.beta, ...orientation.gamma]
-    const avgOri = allOri.reduce((a, b) => a + b, 0) / allOri.length
-    const variance = allOri.reduce((s, v) => s + (v - avgOri) ** 2, 0) / allOri.length
-    signals.orientation = {
-      available: true,
-      sampleCount: orientation.beta.length,
-      avgBeta,
-      avgGamma,
-      variance,
-    }
-  } else {
-    signals.orientation = { available: false }
-  }
+  // Motion/orientation signals are not collected (iOS permission popups
+  // break the hold timer). Report as unavailable so the backend knows.
+  signals.motion = { available: false }
+  signals.orientation = { available: false }
   return signals
 }
 
 /**
  * Reusable hold-to-verify component — the real HCS-U7 cognitive verification.
  * Creates a session on mount, captures the hold gesture + passive signals
- * (touch pressure, timing, motion, orientation), fires a real verify call
- * AFTER the hold completes, and lights up the 4 checks ONLY from the backend
- * response.
+ * (touch pressure, timing), fires a real verify call AFTER the hold completes,
+ * and lights up the 4 checks ONLY from the backend response.
  *
  * Used by:
  *   - SignIn (step 3, inline)
@@ -125,11 +97,7 @@ export default function HoldToVerify({
 
   // Passive signal collection refs
   const touchSamplesRef = useRef<TouchSamples | null>(null)
-  const motionSamplesRef = useRef<MotionSamples | null>(null)
-  const orientationSamplesRef = useRef<OrientationSamples | null>(null)
   const holdStartedAtRef = useRef<number | null>(null)
-  const motionListenerRef = useRef<((e: DeviceMotionEvent) => void) | null>(null)
-  const orientationListenerRef = useRef<((e: DeviceOrientationEvent) => void) | null>(null)
 
   // Create a cognitive session on mount.
   useEffect(() => {
@@ -149,7 +117,6 @@ export default function HoldToVerify({
 
   function retry() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    cleanupSensorListeners()
     setHold('idle')
     setProgress(0)
     setChecks([false, false, false, false])
@@ -164,78 +131,10 @@ export default function HoldToVerify({
       })
   }
 
-  function cleanupSensorListeners() {
-    if (motionListenerRef.current) {
-      window.removeEventListener('devicemotion', motionListenerRef.current)
-      motionListenerRef.current = null
-    }
-    if (orientationListenerRef.current) {
-      window.removeEventListener('deviceorientation', orientationListenerRef.current)
-      orientationListenerRef.current = null
-    }
-  }
-
   function startSensorCapture() {
     touchSamplesRef.current = { force: [], pressure: [], contactStable: true }
-    motionSamplesRef.current = null
-    orientationSamplesRef.current = null
-
-    // Motion capture — graceful degradation if unsupported/denied
-    try {
-      const motionHandler = (e: DeviceMotionEvent) => {
-        const acc = e.accelerationIncludingGravity ?? e.acceleration
-        if (!acc) return
-        const mag = Math.sqrt((acc.x ?? 0) ** 2 + (acc.y ?? 0) ** 2 + (acc.z ?? 0) ** 2)
-        if (!motionSamplesRef.current) {
-          motionSamplesRef.current = { magnitudes: [], maxMagnitude: 0 }
-        }
-        motionSamplesRef.current.magnitudes.push(mag)
-        if (mag > motionSamplesRef.current.maxMagnitude) motionSamplesRef.current.maxMagnitude = mag
-      }
-
-      // iOS 13+ requires permission via user gesture
-      const DME = window.DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> }
-      if (DME && typeof DME.requestPermission === 'function') {
-        DME.requestPermission()
-          .then((state: string) => {
-            if (state === 'granted') {
-              window.addEventListener('devicemotion', motionHandler)
-              motionListenerRef.current = motionHandler
-            }
-          })
-          .catch(() => { /* permission denied — omit motion signal */ })
-      } else {
-        window.addEventListener('devicemotion', motionHandler)
-        motionListenerRef.current = motionHandler
-      }
-    } catch { /* unsupported — omit motion */ }
-
-    // Orientation capture — graceful degradation
-    try {
-      const oriHandler = (e: DeviceOrientationEvent) => {
-        if (e.beta == null && e.gamma == null) return
-        if (!orientationSamplesRef.current) {
-          orientationSamplesRef.current = { beta: [], gamma: [] }
-        }
-        orientationSamplesRef.current.beta.push(e.beta ?? 0)
-        orientationSamplesRef.current.gamma.push(e.gamma ?? 0)
-      }
-
-      const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
-      if (DOE && typeof DOE.requestPermission === 'function') {
-        DOE.requestPermission()
-          .then((state: string) => {
-            if (state === 'granted') {
-              window.addEventListener('deviceorientation', oriHandler)
-              orientationListenerRef.current = oriHandler
-            }
-          })
-          .catch(() => { /* permission denied — omit orientation */ })
-      } else {
-        window.addEventListener('deviceorientation', oriHandler)
-        orientationListenerRef.current = oriHandler
-      }
-    } catch { /* unsupported — omit orientation */ }
+    // Motion/orientation sensors removed: iOS requestPermission() popups
+    // freeze the RAF timer and break the hold gesture. Touch + timing only.
   }
 
   function onPointerDown(e: React.PointerEvent) {
@@ -267,11 +166,10 @@ export default function HoldToVerify({
     if (p < 1) {
       rafRef.current = requestAnimationFrame(fillRing)
     } else {
-      // Hold complete — stop capture, build signals, fire verify
+      // Hold complete — build signals, fire verify
       const completedAt = Date.now()
-      cleanupSensorListeners()
       const startedAt = holdStartedAtRef.current ?? completedAt - HOLD_DURATION_MS
-      const signals = buildSignals(startedAt, completedAt, touchSamplesRef.current, motionSamplesRef.current, orientationSamplesRef.current)
+      const signals = buildSignals(startedAt, completedAt, touchSamplesRef.current)
       void startVerify(signals)
     }
   }
@@ -320,13 +218,11 @@ export default function HoldToVerify({
     if (verifyInFlightRef.current) {
       releasedEarlyRef.current = true
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      cleanupSensorListeners()
       setHold('failed')
       setError(t('holdToVerify.errorReleased'))
       return
     }
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    cleanupSensorListeners()
     setHold('idle')
     setProgress(0)
   }
@@ -339,7 +235,6 @@ export default function HoldToVerify({
 
   useEffect(() => () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    cleanupSensorListeners()
   }, [])
 
   return (
