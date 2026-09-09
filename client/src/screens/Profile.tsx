@@ -112,7 +112,7 @@ export default function Profile() {
           <div className="kv"><span>{t('profile.identityAssurance')}</span><b>{v ? (v.riskLevel === 'low' ? t('profile.assuranceHigh') : v.riskLevel === 'medium' ? t('profile.assuranceMedium') : t('profile.assuranceLow')) : '—'}</b></div>
           <div className="kv"><span>{t('profile.lastVerification')}</span><b>{v?.verifiedAt ? new Date(v.verifiedAt).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}</b></div>
           <div className="kv"><span>{t('profile.deviceBound')}</span><b style={{ color: 'var(--ok)' }}>{t('common.yes')}</b></div>
-          <div className="kv"><span>{t('profile.sessionStatus')}</span><b style={{ color: v?.isHuman ? 'var(--ok)' : 'var(--danger)' }}>{v?.isHuman ? t('profile.verifiedHuman') : t('profile.notVerified')}</b></div>
+          <div className="kv"><span>{t('profile.sessionStatus')}</span><b style={{ color: v?.isHuman ? 'var(--primary-2)' : 'var(--danger)' }}>{v?.isHuman ? t('profile.verifiedHuman') : t('profile.notVerified')}</b></div>
           <p className="disc">{t('profile.hcsDisc')}</p>
         </div>
       </div>

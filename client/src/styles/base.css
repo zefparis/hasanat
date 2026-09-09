@@ -43,8 +43,8 @@ svg { display: block; }
 .hdr.dark .ibtn { background: rgba(255, 255, 255, 0.14); color: #fff; }
 .av-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: #fff; font-family: var(--serif); font-size: 16px; display: flex; align-items: center; justify-content: center; }
 .hdr.dark .av-btn { background: rgba(255, 255, 255, 0.18); }
-.shield { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; padding: 5px 9px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); white-space: nowrap; }
-.shield i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); animation: pulse 2s infinite; }
+.shield { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; padding: 5px 9px; border-radius: 999px; background: var(--surface); color: var(--primary-2); white-space: nowrap; }
+.shield i { width: 6px; height: 6px; border-radius: 50%; background: var(--primary-2); animation: pulse 2s infinite; }
 .hdr.dark .shield { background: rgba(255, 255, 255, 0.14); color: #BFE9D2; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 .back { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; padding: 6px 0; }

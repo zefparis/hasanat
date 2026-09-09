@@ -59,7 +59,7 @@ export default function SignIn() {
           <>
             <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 500 }}>{t('signin.title')}</h2>
             <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 6, lineHeight: 1.5 }}>
-              Enter your phone number. We'll send a one-time code, then hold the gold star for HCS-U7 verification.
+              {t('signin.phoneSubtitle')}
             </p>
             <div className="field">
               <label>{t('signin.phoneLabel')}</label>
